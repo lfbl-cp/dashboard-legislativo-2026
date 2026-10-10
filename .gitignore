@@ -1,0 +1,21 @@
+# Projetos de referência (clone do painel-eleicoes-2026, só consulta)
+/painel-eleicoes-2026/
+
+# Dados brutos do TSE/IBGE e derivados intermediários -- reproduzíveis com
+# pipeline/run_pipeline.R
+/data/
+
+# renv
+/renv/library/
+/renv/local/
+/renv/staging/
+/renv/cache/
+
+# Sessão / máquina
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.log
+.DS_Store
+Thumbs.db

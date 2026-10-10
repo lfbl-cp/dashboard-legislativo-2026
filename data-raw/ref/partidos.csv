@@ -1,0 +1,32 @@
+sigla,rotulo,nr_2026,cor,ideologia,metodo_ideologia,obs
+PSTU,PSTU,16,#D8473A,0.51,tabela,
+PCO,PCO,29,#9F030A,0.55,tabela,
+PCB,PCB,21,#A8231C,0.69,tabela,
+PSOL,PSOL,50,#7B2A9A,1.41,tabela,
+UP,UP,80,#404040,1.63,tabela,
+PCDOB,PCdoB,65,#8A1C2B,1.78,tabela,
+PT,PT,13,#C8102E,2.68,tabela,
+PSB,PSB,40,#F2C12E,3.59,tabela,
+REDE,REDE,18,#3E9E8C,3.69,tabela,
+PDT,PDT,12,#E0607E,3.86,tabela,
+PV,PV,43,#2E6B34,4.12,tabela,
+SOLIDARIEDADE,SOLIDARIEDADE,77,#C75B12,6.01,tabela,"incorporou o PROS (2023); mantém o próprio valor, regra dos autores para incorporação"
+CIDADANIA,CIDADANIA,23,#C2187A,6.17,tabela,"""CDD"" na tabela"
+MOBILIZA,MOBILIZA,33,#E04848,6.74,renomeado,"antigo PMN (renomeado em 05/12/2023); valor do PMN"
+AVANTE,AVANTE,70,#2AB0B8,6.47,tabela,
+MDB,MDB,15,#12935A,6.50,tabela,
+PSDB,PSDB,45,#3F57C9,6.76,tabela,
+PSD,PSD,55,#A35FD6,6.94,tabela,
+DEMOCRATA,DEMOCRATA,35,#8A93D8,7.29,renomeado,"antigo PMB (renomeado em dez/2025); valor do PMB"
+PODE,PODE,20,#74C043,7.44,tabela,"incorporou o PSC (2023); mantém o próprio valor, regra dos autores para incorporação"
+PRTB,PRTB,28,#3C8D40,7.49,tabela,
+AGIR,AGIR,36,#6D6E71,7.55,tabela,
+PRD,PRD,25,#7E9A2C,8.16,fusao,"fusão PTB (7,72) + PATRIOTA (8,60) em 2023; média aritmética, regra dos autores para fusão"
+PP,PP,11,#7CC8EC,8.15,tabela,"""PROGRE"" na tabela"
+DC,DC,27,#9C6B30,8.21,tabela,
+REPUBLICANOS,REPUBLICANOS,10,#1F78C8,8.33,tabela,"""REP"" na tabela"
+PSC,PSC,,#5B8C5A,8.41,tabela,"extinto (incorporado ao PODE em 2023); só aparece no Senado, senador eleito em 2022"
+UNIÃO,UNIÃO,44,#0A9AD6,8.49,tabela,"""UNIAO"" na tabela"
+NOVO,NOVO,30,#F26B3A,8.67,tabela,
+PL,PL,22,#233A8C,8.80,tabela,
+MISSÃO,MISSÃO,14,#B8962E,8.67,estimado,"partido novo (registro em 2025), fora da pesquisa; posição definida pelo usuário: junto ao NOVO (mesmo valor)"
