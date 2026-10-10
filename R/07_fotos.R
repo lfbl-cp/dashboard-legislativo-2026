@@ -32,6 +32,16 @@ extrair_fotos <- function(candidatos, ano = ANO) {
   file.exists(file.path(DIR_FOTOS, paste0(candidatos$sq_candidato, ".jpg")))
 }
 
+# Apaga de output/fotos/ as fotos de quem deixou de ser exibido (ex.: após
+# mudar o critério de suplentes). Devolve quantas foram removidas.
+remover_fotos_nao_exibidas <- function(candidatos) {
+  manter <- paste0(candidatos$sq_candidato[candidatos$exibir], ".jpg")
+  existentes <- list.files(DIR_FOTOS, pattern = "\\.jpg$")
+  sobrando <- setdiff(existentes, manter)
+  unlink(file.path(DIR_FOTOS, sobrando))
+  length(sobrando)
+}
+
 # Titulares do Senado cujo mandato começou na legislatura `n` (= eleitos na
 # eleição anterior a ela): uma linha por UF, com código e URL da foto.
 ler_titulares_senado <- function(n = LEGISLATURA_SENADO_ANTERIOR) {

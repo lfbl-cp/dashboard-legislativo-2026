@@ -18,7 +18,7 @@ Base:
 | Tema | Decisão |
 |---|---|
 | Cargos | Só legislativo: Senador, Dep. Federal, Dep. Estadual/Distrital. Sem Presidente/Governador (evita o 2º turno). |
-| Candidatos — deputados | Só **eleitos e suplentes** (economia de dados). |
+| Candidatos — deputados | **Eleitos + os 3 primeiros suplentes de cada lista** (partido ou federação, por UF e cargo; ordem = votos nominais). Decidido na discussão de economia de dados: todos os suplentes eram 88% dos candidatos e das fotos; os 3 primeiros cobrem quem tem chance real de assumir. |
 | Candidatos — senador | **Todos** (~200 no país). |
 | Votos por partido/federação | **Todos os candidatos + legenda**, somados no pipeline e exportados só como total por partido × unidade (bate com o oficial do TSE). |
 | Geografia | Município + micro/meso/UF (base, dados munzona); **bairros e locais de votação** numa fase posterior (dados por seção, UF a UF). |

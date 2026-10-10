@@ -8,7 +8,11 @@
 # Etapas (em ordem):
 #   candidatos  consulta_cand 2026 (27 UFs) + senadores 2022 -> candidatos,
 #               partidos, federações e cadeiras de cada Casa, validados
-#   fotos       fotos oficiais dos candidatos exibidos -> output/fotos/
+#   votos       votos por candidato x município (munzona, UF a UF); define
+#               os exibidos (eleitos + 3 primeiros suplentes por lista;
+#               senadores todos) e busca as redes sociais deles
+#   fotos       fotos oficiais dos exibidos -> output/fotos/ (apaga as de
+#               quem deixou de ser exibido)
 #   composicao  cadeiras de todas as Casas -> output/composicao.json
 # =============================================================================
 
@@ -24,7 +28,7 @@ local({
 })
 for (f in sort(list.files("R", pattern = "\\.R$", full.names = TRUE))) source(f, encoding = "UTF-8")
 
-ETAPAS <- c("candidatos", "fotos", "composicao")
+ETAPAS <- c("candidatos", "votos", "fotos", "composicao")
 
 args <- commandArgs(trailingOnly = TRUE)
 etapas <- ETAPAS
@@ -59,16 +63,12 @@ etapa_candidatos <- function() {
   }
 
   todos <- rbind(candidatos, senado_anterior)
-  redes <- montar_redes(ANO, todos$sq_candidato[todos$exibir])
-  todos$redes <- unname(redes[todos$sq_candidato])
-
   saveRDS(todos, file.path(DIR_PROCESSED, "candidatos.rds"))
   saveRDS(partidos, file.path(DIR_PROCESSED, "partidos.rds"))
   saveRDS(federacoes, file.path(DIR_PROCESSED, "federacoes.rds"))
   saveRDS(cadeiras, file.path(DIR_PROCESSED, "cadeiras.rds"))
 
-  cat(sprintf("\nCandidatos 2026: %d | exibidos: %d | senadores 2022: %d\n",
-              nrow(candidatos), sum(candidatos$exibir), nrow(senado_anterior)))
+  cat(sprintf("\nCandidatos 2026: %d | senadores 2022: %d\n", nrow(candidatos), nrow(senado_anterior)))
   print(table(candidatos$cargo, candidatos$situacao, useNA = "ifany"))
   cat("\nCadeiras por Casa:\n")
   n <- table(cadeiras$casa)
@@ -81,9 +81,35 @@ etapa_candidatos <- function() {
   print(table(cadeiras$sigla[cadeiras$casa == "senado"], cadeiras$ano[cadeiras$casa == "senado"]))
 }
 
+# --- votos -------------------------------------------------------------------------
+etapa_votos <- function() {
+  candidatos <- readRDS(file.path(DIR_PROCESSED, "candidatos.rds"))
+  votos <- obter_votos_candidato(ANO)
+  saveRDS(votos, file.path(DIR_PROCESSED, "votos_candidato_municipio.rds"))
+
+  eleitos <- candidatos$sq_candidato[candidatos$situacao %in% "eleito" & candidatos$ano == ANO]
+  sem_voto <- setdiff(eleitos, votos$sq_candidato)
+  if (length(sem_voto) > 0) stop("Eleito(s) sem nenhuma linha no munzona: ", paste(sem_voto, collapse = ", "))
+
+  candidatos <- definir_exibidos(candidatos, votos)
+  redes <- montar_redes(ANO, candidatos$sq_candidato[candidatos$exibir])
+  candidatos$redes <- unname(redes[candidatos$sq_candidato])
+  saveRDS(candidatos, file.path(DIR_PROCESSED, "candidatos.rds"))
+
+  cat(sprintf("Linhas candidato x município: %d | candidatos com voto: %d\n",
+              nrow(votos), data.table::uniqueN(votos$sq_candidato)))
+  ex <- candidatos[candidatos$exibir, ]
+  cat(sprintf("Exibidos: %d (deputados eleitos %d, suplentes %d, senadores %d)\n", nrow(ex),
+              sum(ex$situacao %in% "eleito" & ex$cargo != "senador"),
+              sum(ex$situacao %in% "suplente"), sum(ex$cargo == "senador")))
+}
+
 # --- fotos -------------------------------------------------------------------------
 etapa_fotos <- function() {
   candidatos <- readRDS(file.path(DIR_PROCESSED, "candidatos.rds"))
+  if (is.null(candidatos$ordem_suplente)) stop("Rode a etapa votos antes das fotos.")
+  removidas <- remover_fotos_nao_exibidas(candidatos)
+  if (removidas > 0) cat(sprintf("Fotos removidas (deixaram de ser exibidas): %d\n", removidas))
   extrair_fotos(candidatos)
   cat("Senadores de", ANO_SENADO_ANTERIOR, "(TSE x API do Senado, casados por UF):\n")
   print(extrair_fotos_senado_anterior(candidatos), row.names = FALSE)

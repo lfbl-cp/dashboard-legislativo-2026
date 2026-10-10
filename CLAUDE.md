@@ -24,8 +24,11 @@ Combina dois projetos anteriores do usuário:
   como no painel de PE. O hemiciclo ocupa o mesmo espaço (troca de
   visualização), não é seção extra.
 - Só cargos legislativos (sem Presidente/Governador, sem 2º turno).
-- Deputados: dados por candidato **só de eleitos e suplentes**; senador,
-  todos. Totais de partido/federação somam **todos os candidatos + legenda**
+- Deputados: dados por candidato **só de eleitos + os 3 primeiros suplentes
+  de cada lista** (lista = federação ou partido isolado, por UF e cargo;
+  ordem dos suplentes = votos nominais, como na totalização do TSE).
+  Decidido na discussão de economia de dados (todos os suplentes eram 88%
+  dos exibidos e das fotos). Senador: todos. Totais de partido/federação somam **todos os candidatos + legenda**
   (calculado no pipeline, exportado só como total).
 - Senado no hemiciclo: 81 cadeiras = 54 eleitos em 2026 + 27 eleitos em
   2022, **pelo partido da eleição** (não partido atual nem suplente em
@@ -94,7 +97,14 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
   2022 vêm da API de dados abertos do Senado (`senador/lista/legislatura/57`,
   titular com mandato iniciado na 57ª, 1 por UF, casado por UF e conferido
   por nome no log), recortados para 161x225 com `magick`.
-- `votacao_candidato_munzona_2026.zip`: 445 MB (Fase 3).
+- `votacao_candidato_munzona_2026.zip`: 445 MB, um CSV por UF (3,2 GB
+  descompactados; SP 884 MB, MG 718 MB) + `_BR` + `_BRASIL` (não usar). Traz
+  `QT_VOTOS_NOMINAIS_VALIDOS` por candidato x município x zona e também
+  `DS_SIT_TOT_TURNO`. Só voto nominal -- legenda vem de outro arquivo
+  (votação por partido, Fase 3). `R/06_votos.R` processa UF a UF (extrai
+  para temporário, lê só as colunas usadas, soma zonas, apaga o CSV), cache
+  por UF em `data/processed/votos_uf/`. 5,86 milhões de linhas candidato x
+  município no total.
 
 ## Estado atual
 
@@ -103,9 +113,7 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
 - **Fase 1 (candidatos nacional)** completa: etapas `candidatos` e `fotos`.
   Validado: Câmara 513, Senado 81 (2 de 2026 + 1 de 2022 em cada UF), 27
   Assembleias com o tamanho constitucional (CF art. 27, total 1.059);
-  13.058 exibidos, 13.057 com foto (71 MB em `output/fotos/`; o único sem
-  foto é candidatura ao Senado sem totalização, sem foto no TSE); 15 testes
-  passando. MISSÃO (fora da pesquisa) posicionado junto ao NOVO por decisão
+  exibidos e fotos: ver economia de dados abaixo. MISSÃO (fora da pesquisa) posicionado junto ao NOVO por decisão
   do usuário (`metodo_ideologia = estimado`).
 - **Fase 2 (hemiciclos)** completa:
   - Etapa `composicao` -> `output/composicao.json` (29 Casas, 1.653
@@ -130,6 +138,15 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
     contagem de cadeiras = tamanho da Casa em todos, 27 vazadas no Senado,
     card e tooltip funcionando; capturas conferidas visualmente (desktop
     escuro/claro, celular 390px).
-- **Pendente (pedido do usuário)**: discutir economia de dados do projeto
-  (fotos 71 MB no repo, redes no composicao.json, formato dos dados de
-  votação da Fase 3) antes de seguir para a Fase 3.
+- **Economia de dados (discussão com o usuário, em andamento)**:
+  - Decidido: deputados exibidos = eleitos + 3 primeiros suplentes por
+    lista. Nova etapa `votos` (entre `candidatos` e `fotos`) ordena a
+    suplência por votos e redefine `exibir`; `fotos` apaga as de quem
+    saiu. Exibidos 13.058 -> 3.211 (1.572 deputados eleitos, 1.293
+    suplentes, 346 senadores); fotos 71 MB -> 17,5 MB; 3.210 com foto (o
+    único sem é candidatura ao Senado sem totalização, sem foto no TSE).
+    Teste: nenhum suplente supera o eleito menos votado da lista; 1º
+    suplente = mais votado. 21 testes passando.
+  - Ainda em aberto: redes no `composicao.json` (~710 KB), formato dos
+    dados de votação da Fase 3, bairros/locais (Fase 5). As ~9.800 fotos
+    removidas continuam no histórico do git (commit 1df0850).

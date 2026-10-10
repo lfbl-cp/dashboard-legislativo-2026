@@ -58,6 +58,30 @@ test_that("candidatos não carregam dados pessoais sensíveis", {
   expect_false(any(grepl("CPF|EMAIL|TITULO", toupper(names(cand)))))
 })
 
+test_that("suplência segue os votos: nenhum suplente supera o eleito menos votado da lista", {
+  arq <- file.path(DIR_PROCESSED, "candidatos.rds")
+  skip_if_not(file.exists(arq))
+  cand <- readRDS(arq)
+  skip_if(is.null(cand$ordem_suplente), "rode a etapa votos antes")
+  d <- cand[cand$ano == ANO & cand$tipo == "proporcional", ]
+  chave <- paste(d$uf, d$cargo, d$lista)
+  min_eleito <- tapply(d$votos_total[d$situacao %in% "eleito"], chave[d$situacao %in% "eleito"], min)
+  sup <- d[d$situacao %in% "suplente", ]
+  ch_sup <- paste(sup$uf, sup$cargo, sup$lista)
+  com_eleito <- ch_sup %in% names(min_eleito)
+  expect_true(all(sup$votos_total[com_eleito] <= min_eleito[ch_sup[com_eleito]]))
+
+  # 1º suplente é o mais votado entre os suplentes da lista
+  primeiro <- sup[sup$ordem_suplente %in% 1, ]
+  max_sup <- tapply(sup$votos_total, ch_sup, max)
+  expect_equal(as.vector(primeiro$votos_total),
+               as.vector(max_sup[paste(primeiro$uf, primeiro$cargo, primeiro$lista)]))
+
+  # exibidos: eleitos + até N_SUPLENTES por lista
+  expect_true(all(table(ch_sup[sup$exibir]) <= N_SUPLENTES))
+  expect_true(all(d$exibir[d$situacao %in% "eleito"]))
+})
+
 test_that("validar_cadeiras acusa Câmara incompleta", {
   skip_if_not(file.exists(arq_cadeiras))
   cadeiras <- readRDS(arq_cadeiras)
