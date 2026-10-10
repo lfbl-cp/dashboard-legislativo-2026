@@ -1,0 +1,48 @@
+// Orquestração: abas (Mapa | Composição), tema e estado na URL. Uma tela só:
+// a aba decide se o mapa ou o hemiciclo ocupa a tela inteira.
+(async function main() {
+  const status = document.getElementById("status");
+  const inicial = Util.lerEstado();
+  let abaAtual = inicial.aba === "mapa" ? "mapa" : "composicao";
+
+  function gravarUrl() {
+    Util.gravarEstado({ aba: abaAtual, ...(abaAtual === "composicao" ? Composicao.estadoUrl() : {}) });
+  }
+
+  function mostrarAba(aba) {
+    abaAtual = aba;
+    document.querySelectorAll(".abas button").forEach((b) => {
+      b.setAttribute("aria-selected", String(b.dataset.aba === aba));
+    });
+    document.querySelectorAll("[data-aba-painel]").forEach((s) => {
+      s.hidden = s.dataset.abaPainel !== aba;
+    });
+    document.getElementById("map").hidden = aba !== "mapa";
+    document.getElementById("hemiciclo").hidden = aba !== "composicao";
+    if (aba === "mapa") Mapa.aoMostrar();
+    gravarUrl();
+  }
+
+  document.querySelectorAll(".abas button").forEach((b) => {
+    b.addEventListener("click", () => mostrarAba(b.dataset.aba));
+  });
+
+  Mapa.iniciar();
+  Tema.iniciar();
+
+  // O painel flutua sobre o mapa: sem isso, clicar/rolar nele também
+  // arrasta/dá zoom no mapa por baixo.
+  const painel = document.getElementById("controles");
+  L.DomEvent.disableClickPropagation(painel);
+  L.DomEvent.disableScrollPropagation(painel);
+
+  mostrarAba(abaAtual);
+  status.textContent = "Carregando composição...";
+  try {
+    await Composicao.iniciar(inicial, gravarUrl);
+    status.textContent = "";
+  } catch (e) {
+    status.textContent = `Erro ao carregar dados: ${e.message}`;
+    throw e;
+  }
+})();

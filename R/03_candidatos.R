@@ -73,7 +73,9 @@ montar_candidatos <- function(cand_raw) {
     nr_partido = cand_raw$NR_PARTIDO,
     nr_federacao = ifelse(is.na(cand_raw$NR_FEDERACAO) | cand_raw$NR_FEDERACAO < 0,
                           NA_integer_, as.integer(cand_raw$NR_FEDERACAO)),
-    coligacao = ifelse(cand_raw$NM_COLIGACAO %in% c("PARTIDO ISOLADO", NA),
+    # "FEDERAÇÃO" é o que o TSE põe em NM_COLIGACAO de quem concorreu por
+    # federação -- não é coligação; a federação já aparece em nr_federacao.
+    coligacao = ifelse(cand_raw$NM_COLIGACAO %in% c("PARTIDO ISOLADO", "FEDERAÇÃO", NA),
                        NA_character_, cand_raw$NM_COLIGACAO),
     situacao = classificar_situacao(cand_raw$DS_SIT_TOT_TURNO),
     ds_situacao_tse = cand_raw$DS_SIT_TOT_TURNO,
@@ -88,13 +90,50 @@ montar_candidatos <- function(cand_raw) {
   out
 }
 
-# Redes sociais declaradas, só dos candidatos exibidos -> lista por candidato.
+# Redes em que o identificador não diferencia maiúsculas e a query string é
+# só rastreamento (?igsh=, ?s=, ?_t=...) -- nelas a URL é normalizada para
+# minúsculas e sem query.
+HOSTS_REDES <- c("instagram.com", "facebook.com", "fb.com", "tiktok.com", "twitter.com",
+                 "x.com", "youtube.com", "threads.com", "threads.net", "kwai.com",
+                 "linkedin.com", "linktr.ee")
+MAX_REDES <- 6
+
+# Normaliza a URL declarada (o TSE traz URLs em CAIXA ALTA, sem esquema, com
+# parâmetros de rastreamento) e diz se é de uma rede conhecida.
+limpar_url_rede <- function(url) {
+  u <- trimws(url)
+  u <- ifelse(grepl("^[a-zA-Z][a-zA-Z0-9+.-]*://", u), u, paste0("https://", u))
+  partes <- regmatches(u, regexec("^([^:]+)://([^/?#]+)([^?#]*)(.*)$", u))
+  vapply(partes, function(p) {
+    if (length(p) == 0) return(NA_character_)
+    host <- tolower(p[3])
+    caminho <- p[4]
+    conhecida <- any(host == HOSTS_REDES | endsWith(host, paste0(".", HOSTS_REDES)))
+    if (conhecida) {
+      caminho <- sub("/+$", "", tolower(caminho))
+      return(paste0("https://", host, caminho))
+    }
+    paste0(tolower(p[2]), "://", host, caminho, p[5])
+  }, character(1))
+}
+
+eh_rede_conhecida <- function(url) {
+  host <- tolower(sub("^[^:]+://([^/?#]+).*$", "\\1", url))
+  host %in% HOSTS_REDES | Reduce(`|`, lapply(paste0(".", HOSTS_REDES), endsWith, x = host))
+}
+
+# Redes sociais declaradas, só dos candidatos exibidos -> lista por candidato
+# (até MAX_REDES, redes conhecidas primeiro, sem duplicatas).
 montar_redes <- function(ano, sq_exibidos) {
   csvs <- obter_csvs_redes(ano)
   r <- data.table::rbindlist(lapply(csvs, ler_csv_tse,
                                     select = c("SQ_CANDIDATO", "NR_ORDEM_REDE_SOCIAL", "DS_URL")))
-  r[, `:=`(sq = as.character(SQ_CANDIDATO), url = trimws(DS_URL))]
-  r <- r[sq %in% sq_exibidos & !is.na(url) & nzchar(url)][order(sq, NR_ORDEM_REDE_SOCIAL)]
-  r <- unique(r, by = c("sq", "url"))
+  r[, sq := as.character(SQ_CANDIDATO)]
+  r <- r[sq %in% sq_exibidos & !is.na(DS_URL) & nzchar(trimws(DS_URL))]
+  r[, url := limpar_url_rede(DS_URL)]
+  r <- r[!is.na(url)]
+  r[, conhecida := eh_rede_conhecida(url)]
+  r <- unique(r[order(sq, -conhecida, NR_ORDEM_REDE_SOCIAL)], by = c("sq", "url"))
+  r <- r[, head(.SD, MAX_REDES), by = sq]
   split(r$url, r$sq)
 }

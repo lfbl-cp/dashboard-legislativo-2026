@@ -9,6 +9,7 @@
 #   candidatos  consulta_cand 2026 (27 UFs) + senadores 2022 -> candidatos,
 #               partidos, federações e cadeiras de cada Casa, validados
 #   fotos       fotos oficiais dos candidatos exibidos -> output/fotos/
+#   composicao  cadeiras de todas as Casas -> output/composicao.json
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -23,7 +24,7 @@ local({
 })
 for (f in sort(list.files("R", pattern = "\\.R$", full.names = TRUE))) source(f, encoding = "UTF-8")
 
-ETAPAS <- c("candidatos", "fotos")
+ETAPAS <- c("candidatos", "fotos", "composicao")
 
 args <- commandArgs(trailingOnly = TRUE)
 etapas <- ETAPAS
@@ -94,6 +95,17 @@ etapa_fotos <- function() {
   if (any(!ex$tem_foto)) print(ex[!ex$tem_foto, c("uf", "cargo", "nome", "ds_situacao_tse")], row.names = FALSE)
   tam <- sum(file.size(list.files(DIR_FOTOS, full.names = TRUE)))
   cat(sprintf("output/fotos/: %.1f MB\n", tam / 1024^2))
+}
+
+# --- composicao -------------------------------------------------------------------
+etapa_composicao <- function() {
+  ler <- function(nome) readRDS(file.path(DIR_PROCESSED, paste0(nome, ".rds")))
+  candidatos <- ler("candidatos")
+  if (is.null(candidatos$tem_foto)) stop("Rode a etapa fotos antes da composicao.")
+  comp <- montar_composicao(ler("cadeiras"), candidatos, ler("partidos"), ler("federacoes"))
+  arq <- exportar_json(comp, file.path(DIR_OUTPUT, "composicao.json"))
+  cat(sprintf("%s: %d Casas, %d cadeiras, %.0f KB\n", arq, length(comp$casas),
+              sum(vapply(comp$casas, `[[`, integer(1), "total")), file.size(arq) / 1024))
 }
 
 for (e in etapas) {

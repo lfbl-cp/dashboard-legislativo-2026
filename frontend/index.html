@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Painel Legislativo 2026</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="css/estilo.css" />
+</head>
+<body data-tema="escuro">
+<!-- Uma tela só: o mapa ou o hemiciclo ocupa a tela inteira, conforme a aba. -->
+<div id="map"></div>
+
+<div id="hemiciclo" hidden>
+  <div id="hemiciclo-titulo"></div>
+  <svg id="hemiciclo-svg" role="img" aria-labelledby="hemiciclo-titulo"></svg>
+  <div id="hemiciclo-nota"></div>
+</div>
+<div id="tooltip" hidden></div>
+
+<aside id="controles">
+  <div id="controles-topo">
+    <h1>Painel Legislativo 2026</h1>
+    <button id="btn-tema" type="button" title="Alternar modo claro/escuro">Escuro</button>
+  </div>
+  <p class="subtitulo">Eleições gerais de 2026 · 1º turno</p>
+
+  <nav class="abas" role="tablist">
+    <button type="button" role="tab" data-aba="mapa">Mapa</button>
+    <button type="button" role="tab" data-aba="composicao">Composição</button>
+  </nav>
+
+  <section id="painel-mapa" data-aba-painel="mapa">
+    <p class="aviso">Mapa de resultados por município em construção.</p>
+  </section>
+
+  <section id="painel-composicao" data-aba-painel="composicao">
+    <label>
+      Casa
+      <select id="sel-casa">
+        <option value="camara">Câmara dos Deputados</option>
+        <option value="senado">Senado Federal</option>
+        <option value="assembleia">Assembleia Legislativa</option>
+      </select>
+    </label>
+    <label id="label-uf-casa">
+      UF
+      <select id="sel-uf-casa"></select>
+    </label>
+    <label id="label-destaque">
+      Destacar bancada
+      <select id="sel-destaque"></select>
+    </label>
+    <div class="campo">
+      <span class="campo-titulo">Agrupar por</span>
+      <div class="segmentado" id="seg-agrupar">
+        <button type="button" data-valor="partido">Partido</button>
+        <button type="button" data-valor="federacao">Federação</button>
+      </div>
+    </div>
+    <div id="legenda-composicao"></div>
+    <div id="card-eleito" hidden></div>
+    <p class="legenda-nota" id="fonte-ideologia"></p>
+  </section>
+
+  <p id="status"></p>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="js/dados.js"></script>
+<script src="js/util.js"></script>
+<script src="js/mapa.js"></script>
+<script src="js/tema.js"></script>
+<script src="js/hemiciclo.js"></script>
+<script src="js/composicao.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

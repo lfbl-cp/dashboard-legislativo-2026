@@ -12,6 +12,21 @@ test_that("situação final do TSE é classificada", {
   )
 })
 
+test_that("URL de rede social é normalizada", {
+  expect_equal(
+    limpar_url_rede(c("HTTPS://WWW.INSTAGRAM.COM/PLINIO.VALERIO?IGSH=ZJNT",
+                      "www.tiktok.com/@Fulano?_t=8AX&_r=1",
+                      "https://twitter.com/fulano/",
+                      "http://WWW.Site.com.br/Pagina?id=1")),
+    c("https://www.instagram.com/plinio.valerio",
+      "https://www.tiktok.com/@fulano",
+      "https://twitter.com/fulano",
+      "http://www.site.com.br/Pagina?id=1")
+  )
+  expect_equal(eh_rede_conhecida(c("https://www.instagram.com/x", "https://m.facebook.com/x",
+                                   "https://meusite.com.br")), c(TRUE, TRUE, FALSE))
+})
+
 test_that("tamanho da Assembleia segue a CF art. 27", {
   expect_equal(tamanho_assembleia(c(8L, 12L, 25L, 70L)), c(24L, 36L, 49L, 94L))
 })

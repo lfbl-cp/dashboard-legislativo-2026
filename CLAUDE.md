@@ -60,7 +60,16 @@ tests/testthat/    testes
 Rscript pipeline/run_pipeline.R                        # tudo
 Rscript pipeline/run_pipeline.R --etapa=candidatos     # uma etapa
 Rscript -e "testthat::test_dir('tests/testthat')"      # testes (da raiz)
+Rscript tests/qa_frontend.R [pasta]                    # QA do front no Chrome headless
+Rscript -e "servr::httd('.', port = 8000)"             # servidor local -> /frontend/
 ```
+
+`file://` não funciona (o `fetch` de `../output/` é bloqueado). Não há
+Python nem Node na máquina; servidor e QA são em R (`servr`, `chromote`).
+No QA, o servidor roda num processo à parte (`processx`): o `servr` em modo
+daemon depende do loop de eventos da sessão, que o `chromote` bloqueia
+(`Page.navigate` estoura o tempo). Para o `chromote` achar o navegador:
+`CHROMOTE_CHROME="C:/Program Files/Google/Chrome/Application/chrome.exe"`.
 
 R 4.6.1 (`C:\Program Files\R\R-4.6.1`), pacotes na biblioteca do usuário.
 `renv.lock` só **registra** as versões (snapshot da biblioteca do usuário);
@@ -98,4 +107,29 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
   foto é candidatura ao Senado sem totalização, sem foto no TSE); 15 testes
   passando. MISSÃO (fora da pesquisa) posicionado junto ao NOVO por decisão
   do usuário (`metodo_ideologia = estimado`).
-- Próximo: Fase 2 (hemiciclos: JSON de composição + aba Composição).
+- **Fase 2 (hemiciclos)** completa:
+  - Etapa `composicao` -> `output/composicao.json` (29 Casas, 1.653
+    cadeiras, ~710 KB; metade disso são links de redes sociais -- ver
+    pendência de economia de dados abaixo). Redes normalizadas na origem
+    (`limpar_url_rede()`: minúsculas, sem query de rastreamento, até 6,
+    redes conhecidas primeiro). Coligação "FEDERAÇÃO" do TSE vira vazio.
+  - Front-end (`frontend/`): abas Mapa | Composição; o hemiciclo ocupa o
+    lugar do mapa. `hemiciclo.js` = layout próprio (arcos concêntricos,
+    busca binária do espaçamento, cadeiras por fileira proporcionais ao
+    arco, ordenadas por ângulo e preenchidas na ordem dos grupos).
+    `composicao.js` = Casa/UF, destaque de bancada (Câmara/Senado; legenda
+    passa a contar só a bancada), Partido|Federação, clique na legenda
+    destaca o grupo, clique na cadeira abre card (foto, partido,
+    federação, situação, dados, redes), tooltip no hover. Senado: cadeira
+    vazada = eleito em 2022. Estado na URL
+    (`#aba=composicao&casa=assembleia&uf=PE&agrupar=federacao`).
+  - Mapa-base claro trocado de OSM para Esri World Light Gray (a política
+    de uso dos tiles do OSM não admite tráfego alto -- ver clone).
+  - Mapa ainda só com mapa-base (Fase 4); aba padrão é Composição.
+  - Verificado com `tests/qa_frontend.R`: 11 cenários sem erro de JS/HTTP,
+    contagem de cadeiras = tamanho da Casa em todos, 27 vazadas no Senado,
+    card e tooltip funcionando; capturas conferidas visualmente (desktop
+    escuro/claro, celular 390px).
+- **Pendente (pedido do usuário)**: discutir economia de dados do projeto
+  (fotos 71 MB no repo, redes no composicao.json, formato dos dados de
+  votação da Fase 3) antes de seguir para a Fase 3.
