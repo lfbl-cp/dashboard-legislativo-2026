@@ -34,6 +34,12 @@ const Mapa = (() => {
     return ehContorno ? Math.min(base * 3.15, 1.98) : base;
   }
 
+  // Locais de votação (pontos): borda fina fixa, para círculos vizinhos não
+  // virarem uma mancha branca.
+  function pesoFeicao(f) {
+    return f.geometry.type === "Point" ? 0.5 : pesoLinha(false);
+  }
+
   function corLinha() {
     return "#ffffff"; // como no clone (validado pelo usuário nos dois temas)
   }
@@ -47,7 +53,7 @@ const Mapa = (() => {
     mapa = L.map("map", { zoomControl: false, renderer }).setView([-14.5, -52], 4);
     L.control.zoom({ position: "bottomright" }).addTo(mapa);
     mapa.on("zoomend", () => {
-      if (camada) camada.setStyle({ weight: pesoLinha(false) });
+      if (camada) camada.setStyle((f) => ({ weight: pesoFeicao(f) }));
       if (camadaContorno) camadaContorno.setStyle({ weight: pesoLinha(true) });
     });
     return mapa;
@@ -65,14 +71,17 @@ const Mapa = (() => {
     if (ultimo && aoRedesenhar) aoRedesenhar();
   }
 
-  // features: GeoJSON das unidades; estilo(feature) -> {fillColor,
-  // fillOpacity}; popup(feature) -> HTML; contorno: features das UFs.
+  // features: GeoJSON das unidades (polígonos, ou pontos com
+  // properties.raio para locais de votação); estilo(feature) -> {fillColor,
+  // fillOpacity}; popup(feature) -> HTML; contorno: features das UFs (ou o
+  // limite da capital).
   function renderizar({ features, estilo, popup, contorno, ajustarVista = true }) {
     ultimo = { features };
     if (camada) mapa.removeLayer(camada);
     camada = L.geoJSON({ type: "FeatureCollection", features }, {
       renderer,
-      style: (f) => ({ ...estilo(f), color: corLinha(), weight: pesoLinha(false), opacity: 1 }),
+      pointToLayer: (f, latlng) => L.circleMarker(latlng, { renderer, radius: f.properties.raio || 4 }),
+      style: (f) => ({ ...estilo(f), color: corLinha(), weight: pesoFeicao(f), opacity: 1 }),
       onEachFeature: (f, layer) => layer.bindPopup(() => popup(f), { maxWidth: 300 }),
     }).addTo(mapa);
 
@@ -132,5 +141,15 @@ const Mapa = (() => {
     return ultimo ? ultimo.features.length : 0;
   }
 
-  return { iniciar, definirTema, renderizar, aoMostrar, tema, definirAoRedesenhar, nFeicoes };
+  // Posição na tela (px do contêiner) do centro da k-ésima unidade desenhada
+  // (usado pelo QA para clicar num local de votação).
+  function pontoTela(k) {
+    const layer = camada && camada.getLayers()[k];
+    if (!layer) return null;
+    const ll = layer.getLatLng ? layer.getLatLng() : layer.getBounds().getCenter();
+    const p = mapa.latLngToContainerPoint(ll);
+    return [p.x, p.y];
+  }
+
+  return { iniciar, definirTema, renderizar, aoMostrar, tema, definirAoRedesenhar, nFeicoes, pontoTela };
 })();

@@ -7,19 +7,45 @@
 //     deputados, não no modo "quem lidera": só eleitos + 3 suplentes por
 //     lista são exportados, então o mais votado de um município poderia não
 //     estar entre eles.
-//   - LISA só por município, numa UF com pelo menos 5 municípios (vizinhança
-//     da própria UF -- misturar 27 eleições não tem sentido, ver clone).
+//   - LISA por município numa UF (vizinhança da própria UF -- misturar 27
+//     eleições não tem sentido, ver clone; fora o DF, 1 município) ou pelas
+//     subdivisões da capital; nunca por local de votação (pontos).
+//   - Bairros/locais (piloto nas capitais) só numa UF; bairros só onde a
+//     capital tem subdivisão na malha do IBGE.
 const PainelMapa = (() => {
   const CARGOS = { federal: "Deputado Federal", estadual: "Deputado Estadual/Distrital", senador: "Senador" };
-  const UNIDADES = { municipio: "Município", microrregiao: "Microrregião", mesorregiao: "Mesorregião", uf: "UF" };
+  const UNIDADES = {
+    municipio: "Município", microrregiao: "Microrregião", mesorregiao: "Mesorregião", uf: "UF",
+    subdivisao: "Bairro", local: "Local de votação",
+  };
+  const PLURAIS = {
+    municipio: "municípios", microrregiao: "microrregiões", mesorregiao: "mesorregiões", uf: "UFs",
+    subdivisao: "bairros", local: "locais de votação",
+  };
+  const DA_CAPITAL = new Set(["subdivisao", "local"]);
   const MODOS = { lider: "Quem lidera", continuo: "Desempenho (contínuo)", lisa: "Clusters (LISA)" };
 
   let meta = null;
+  let capitais = {};
   let aoMudarEstado = () => {};
   let sequencia = 0;
-  let ufDesenhada = null;
+  let vistaDesenhada = null;
   const estado = { cargo: "federal", uf: "BR", unidade: "municipio", agrupar: "partido", modo: "lider", alvo: "" };
   const el = (id) => document.getElementById(id);
+
+  function capitalDe(uf) {
+    return capitais[uf] || null;
+  }
+
+  // Rótulo da unidade (singular ou plural, minúsculo para o plural); a
+  // subdivisão da capital tem nome próprio (bairros, distritos, RAs...).
+  function rotuloUnidade(unidade, plural = false) {
+    const cap = capitalDe(estado.uf);
+    if (unidade === "subdivisao" && cap && cap.subdivisao) {
+      return plural ? cap.subdivisao.rotulo.toLowerCase() : cap.subdivisao.singular;
+    }
+    return plural ? PLURAIS[unidade] : UNIDADES[unidade];
+  }
 
   // --- regras de combinação ---------------------------------------------------
   function candidatoPermitido(e) {
@@ -27,13 +53,24 @@ const PainelMapa = (() => {
   }
 
   function lisaPermitida(e) {
+    if (e.unidade === "subdivisao") return (capitalDe(e.uf) || {}).n_subdivisoes >= 5;
     return e.uf !== "BR" && e.uf !== "DF" && e.unidade === "municipio";
+  }
+
+  function unidadePermitida(e) {
+    if (!UNIDADES[e.unidade]) return false;
+    if (e.unidade === "uf") return e.uf === "BR";
+    if (DA_CAPITAL.has(e.unidade)) {
+      const cap = capitalDe(e.uf);
+      return e.uf !== "BR" && !!cap && (e.unidade === "local" || !!cap.subdivisao);
+    }
+    return true;
   }
 
   function normalizar() {
     if (!CARGOS[estado.cargo]) estado.cargo = "federal";
     if (estado.uf !== "BR" && !NOMES_UF[estado.uf]) estado.uf = "BR";
-    if (!UNIDADES[estado.unidade] || (estado.unidade === "uf" && estado.uf !== "BR")) estado.unidade = "municipio";
+    if (!unidadePermitida(estado)) estado.unidade = "municipio";
     if (!MODOS[estado.modo]) estado.modo = "lider";
     if (estado.modo === "lisa" && !lisaPermitida(estado)) estado.modo = "continuo";
     if (!["partido", "federacao", "candidato"].includes(estado.agrupar)) estado.agrupar = "partido";
@@ -54,9 +91,12 @@ const PainelMapa = (() => {
   function sincronizarControles() {
     opcoes(el("sel-cargo"), Object.entries(CARGOS), estado.cargo);
     opcoes(el("sel-uf"), [["BR", "Brasil"], ...UFS.map((u) => [u, NOMES_UF[u]])], estado.uf);
+    const cap = capitalDe(estado.uf);
     opcoes(
       el("sel-unidade"),
-      Object.entries(UNIDADES).filter(([u]) => u !== "uf" || estado.uf === "BR"),
+      Object.keys(UNIDADES)
+        .filter((u) => unidadePermitida({ ...estado, unidade: u }))
+        .map((u) => [u, DA_CAPITAL.has(u) ? `${Util.titulo(rotuloUnidade(u, true))} — ${cap.nome}` : UNIDADES[u]]),
       estado.unidade
     );
     opcoes(el("sel-modo"), Object.entries(MODOS).map(([m, r]) => [m, r, m === "lisa" && !lisaPermitida(estado)]), estado.modo);
@@ -112,9 +152,12 @@ const PainelMapa = (() => {
     const pedido = ++sequencia;
     const status = el("status");
     status.textContent = "Carregando...";
+    const naCapital = DA_CAPITAL.has(estado.unidade);
     let escopo;
     try {
-      escopo = await Analise.carregarEscopo(estado.uf);
+      escopo = naCapital
+        ? await Analise.carregarCapital(estado.uf, capitalDe(estado.uf))
+        : await Analise.carregarEscopo(estado.uf);
     } catch (e) {
       status.textContent = `Erro ao carregar dados: ${e.message}`;
       throw e;
@@ -140,6 +183,7 @@ const PainelMapa = (() => {
     aoMudarEstado();
 
     const tema = Mapa.tema();
+    const SEM_DADO = { fillColor: "#999999", fillOpacity: 0.35 };
     let estiloUnidade;
     let infoUnidade = () => "";
     let legenda;
@@ -148,7 +192,7 @@ const PainelMapa = (() => {
       const { lideres } = Analise.lideres(ents, uns, tot.validos);
       estiloUnidade = (u) => {
         const l = lideres[u];
-        if (!l) return { fillColor: "#999999", fillOpacity: 0.5 };
+        if (!l) return SEM_DADO;
         const cor = ents[l.k].cor;
         return {
           fillColor: l.intensidade === "alta" ? Cores.escurecer(cor, 0.25) : Cores.interpolarComBranco(cor, 0.55),
@@ -163,8 +207,18 @@ const PainelMapa = (() => {
     } else if (estado.modo === "continuo") {
       const fr = alvo ? Analise.fracoes(alvo, uns, tot.validos) : new Float64Array(uns.n);
       const max = Analise.teto(fr);
-      estiloUnidade = (u) => ({ fillColor: Cores.interpolarComBranco(alvo.cor, fr[u] / max), fillOpacity: 0.9 });
+      estiloUnidade = (u) =>
+        tot.validos[u] > 0 ? { fillColor: Cores.interpolarComBranco(alvo.cor, fr[u] / max), fillOpacity: 0.9 } : SEM_DADO;
       legenda = legendaContinuo(alvo, max);
+    } else if (escopo.capital) {
+      // LISA sobre o % por subdivisão (bairros sem local de votação ficam
+      // fora da vizinhança e em cinza).
+      const fr = Analise.fracoes(alvo, uns, tot.validos);
+      const classeUn = Analise.lisaSubdivisoes(escopo, uns, fr, tot.validos);
+      estiloUnidade = (u) =>
+        classeUn[u] ? { fillColor: Cores.corLisa(classeUn[u], tema), fillOpacity: Cores.opacidadeLisa(classeUn[u], tema) } : SEM_DADO;
+      infoUnidade = (u) => `<div class="popup-nota">Cluster: <b>${Util.esc(classeUn[u] || "sem local de votação")}</b></div>`;
+      legenda = legendaLisa(classeUn.filter(Boolean), tema);
     } else {
       // LISA: % de válidos por município, na ordem do arquivo de votos (a
       // mesma da vizinhança); depois levado à ordem das feições.
@@ -190,18 +244,18 @@ const PainelMapa = (() => {
       return htmlPopup(f, u, ents, votosUn, tot.validos[u], alvo, escopo) + infoUnidade(u);
     };
 
-    const contorno = estado.unidade === "uf" ? null : Analise.contornoUfs(escopo, meta);
+    const contorno = estado.unidade === "uf" ? null : Analise.contornoUfs(escopo, meta, estado.unidade);
     Mapa.renderizar({
       features: uns.features,
       estilo: (f) => estiloUnidade(indice.get(f)),
       popup,
       contorno,
-      ajustarVista: !manterVista && ufDesenhada !== estado.uf,
+      ajustarVista: !manterVista && vistaDesenhada !== escopo.chave,
     });
-    ufDesenhada = estado.uf;
+    vistaDesenhada = escopo.chave;
 
     renderResumo(tot.escopo);
-    el("legenda-mapa").innerHTML = legenda;
+    el("legenda-mapa").innerHTML = legenda + (escopo.capital ? notaCapital(escopo, uns) : "");
     renderCard(alvo);
     status.textContent = "";
   }
@@ -227,7 +281,8 @@ const PainelMapa = (() => {
           <td class="num suave">${Math.round(x.v).toLocaleString("pt-BR")}</td></tr>`;
       })
       .join("");
-    return `<div class="popup"><b>${titulo}</b>
+    const detalhe = f.properties.detalhe ? `<div class="popup-nota">${Util.esc(f.properties.detalhe)}</div>` : "";
+    return `<div class="popup"><b>${titulo}</b>${detalhe}
       <div class="popup-nota">${Math.round(validos).toLocaleString("pt-BR")} votos válidos · ${Util.esc(CARGOS[estado.cargo])}</div>
       <table>${linhas}</table></div>`;
   }
@@ -238,13 +293,13 @@ const PainelMapa = (() => {
     lideres.forEach((l) => {
       if (l) cont.set(l.k, (cont.get(l.k) || 0) + 1);
     });
-    const nome = UNIDADES[estado.unidade].toLowerCase();
+    const nome = rotuloUnidade(estado.unidade, true);
     const itens = [...cont.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([k, n]) => `<div class="item"><span class="swatch" style="background:${Cores.escurecer(ents[k].cor, 0.25)}"></span>
         <span>${Util.esc(ents[k].rotulo)}</span><span class="n">${n}</span></div>`)
       .join("");
-    return `<div class="legenda-cabecalho"><span>Lidera em</span><span>${Util.esc(nome)}s</span></div>${itens}
+    return `<div class="legenda-cabecalho"><span>Lidera em</span><span>${Util.esc(nome)}</span></div>${itens}
       <div class="legenda-nota">Tom mais escuro = folga maior sobre o 2º colocado (acima da mediana das vitórias daquele ${
         estado.agrupar === "candidato" ? "candidato" : "partido"
       }); mais claro = folga menor.</div>`;
@@ -255,7 +310,7 @@ const PainelMapa = (() => {
     const grad = [0, 0.25, 0.5, 0.75, 1].map((t) => Cores.interpolarComBranco(alvo.cor, t)).join(",");
     return `<div class="escala" style="background:linear-gradient(90deg,${grad})"></div>
       <div class="escala-rotulos"><span>0%</span><span>≥ ${Util.pctBr(max)}</span></div>
-      <div class="legenda-nota">% dos votos válidos em cada ${Util.esc(UNIDADES[estado.unidade].toLowerCase())}.
+      <div class="legenda-nota">% dos votos válidos em cada ${Util.esc(rotuloUnidade(estado.unidade).toLowerCase())}.
       No escopo: <b>${Util.pctBr(alvo.fracEscopo)}</b> (${Math.round(alvo.total).toLocaleString("pt-BR")} votos).
       A cor satura no percentil 98, para um reduto isolado não apagar o resto do mapa.</div>`;
   }
@@ -267,8 +322,29 @@ const PainelMapa = (() => {
     });
     const itens = LISA.NIVEIS.map((n) => `<div class="item"><span class="swatch" style="background:${Cores.corLisa(n, tema)}"></span>
       <span>${n}</span><span class="n">${cont[n] || 0}</span></div>`).join("");
-    return `${itens}<div class="legenda-nota">Moran local sobre o % dos válidos por município (vizinhança queen,
-      p &lt; 0,05). Alto-Alto: reduto cercado de municípios também fortes; Baixo-Baixo: o inverso.</div>`;
+    const um = rotuloUnidade(estado.unidade).toLowerCase();
+    const varios = rotuloUnidade(estado.unidade, true);
+    return `${itens}<div class="legenda-nota">Moran local sobre o % dos válidos por ${Util.esc(um)} (vizinhança queen,
+      p &lt; 0,05). Alto-Alto: reduto cercado de ${Util.esc(varios)} também fortes; Baixo-Baixo: o inverso.</div>`;
+  }
+
+  // Fonte e cobertura das visões da capital.
+  function notaCapital(escopo, uns) {
+    const cap = capitalDe(estado.uf);
+    const n = escopo.n;
+    let texto;
+    if (estado.unidade === "local") {
+      const fora = n - uns.n;
+      texto = `${uns.n.toLocaleString("pt-BR")} locais de votação de ${Util.esc(cap.nome)}, círculo proporcional ao
+        eleitorado (cadastro do TSE)${fora > 0 ? `; ${fora} sem coordenada ficam fora do mapa, mas entram no resumo` : ""}.`;
+    } else {
+      const sem = Array.from(uns.unidadeDe).filter((u) => u < 0).length;
+      texto = `Soma dos locais de votação que caem em cada ${Util.esc(rotuloUnidade("subdivisao").toLowerCase())}
+        (malha do IBGE, Censo 2022); cinza = sem local de votação${
+          sem > 0 ? `. ${sem} de ${n} locais ficam fora de todos (área rural, ilha ou sem coordenada) e só entram no resumo` : ""
+        }.`;
+    }
+    return `<div class="legenda-nota">${texto} Votos por seção do TSE.</div>`;
   }
 
   function renderResumo(t) {
@@ -291,8 +367,9 @@ const PainelMapa = (() => {
   }
 
   // --- API ------------------------------------------------------------------------
-  function iniciar(inicial, metaCarregado, callbackEstado) {
+  function iniciar(inicial, metaCarregado, capitaisCarregado, callbackEstado) {
     meta = metaCarregado;
+    capitais = capitaisCarregado || {};
     aoMudarEstado = callbackEstado || aoMudarEstado;
     ["cargo", "uf", "unidade", "agrupar", "modo", "alvo"].forEach((k) => {
       if (inicial[k]) estado[k] = inicial[k];

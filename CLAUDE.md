@@ -222,5 +222,46 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
     card, link hemiciclo -> mapa, URLs inválidas corrigidas, celular e
     tema claro; **LISA do navegador = spdep::localmoran em 100% dos
     municípios** (PE, SP, BA, MG; 2.100 municípios). Capturas conferidas.
-- Próximo: Fase 5 (bairros e locais, piloto nas capitais) e Fase 6
-  (publicação).
+- **Fase 5 (bairros e locais, piloto nas 27 capitais)** completa -- etapa
+  `capitais` (`R/11_capitais.R`, precisa de `exportar`):
+  - Votos: `votacao_secao_2026_{UF}.zip` (2,5 GB no total, cache em
+    data/raw). O CSV da UF (SP ~6 GB) é varrido em blocos de 2 milhões de
+    linhas e só as que trazem `;<código TSE>;"` vão ao `fread`; soma por
+    local x votável, cache `data/processed/capitais/secao_2026_{UF}.rds`
+    (1ª varredura de todas: ~25 min; SP ~7 min).
+  - Classificação dos votos da seção (bate **exatamente** com o munzona em
+    todas as capitais: comparecimento, válidos, brancos, nulos e cada
+    partido, por cargo -- `conferir_capital()` para a etapa se divergir):
+    nominal de candidato com voto válido no munzona do município = válido;
+    presente no munzona com 0 = anulado sub judice (fora de válidos e
+    nulos); ausente do munzona = **nulo técnico** (o TSE soma em
+    `QT_TOTAL_VOTOS_NULOS`). Legenda de partido sem voto válido: anulada se
+    o munzona por partido tem `QT_VOTOS_LEGENDA_ANUL_SUBJUD` > 0 para ele no
+    município, senão nulo técnico (tentativas de inferir pelos candidatos
+    falharam em RO/PB).
+  - Locais: cadastro `eleitorado_local_votacao_2026` (lat/long oficiais do
+    TSE; casa por zona+local, depois pelo número ORIGINAL). Nenhuma
+    geocodificação: ~60 locais sem coordenada no país (SP 12, AP 10, RR 8)
+    ficam fora do mapa e entram no resumo; ponto a mais de 1 km do
+    município é descartado.
+  - Subdivisões: bairros do IBGE (Censo 2022, `geobr::read_neighborhood`).
+    Sem bairro no IBGE: SP usa os 96 distritos, DF as 33 RAs (subdistritos)
+    e Goiânia as 64 UTPs, dos setores censitários de 2022
+    (`SUBDIVISOES_SETOR`); Rio Branco, São Luís e Palmas ficam só com
+    locais. Local atribuído pelo ponto na geometria completa; locais fora
+    de toda subdivisão só entram no resumo -- relevante em Porto Velho
+    (26% dos válidos: malha de bairros só da área urbana), Macapá (12%),
+    Cuiabá (8,5%), Boa Vista (7%), Teresina (6,5%).
+  - Saída: `capitais/{UF}.json` (mesmo formato de votos/{UF}.json,
+    indexado por local, + `locais` colunar, `aptos` = eleitores do
+    cadastro, `vizinhos` das subdivisões), `capitais/index.json` (nome,
+    rótulo da subdivisão, contagens) e `geo/subdivisoes_{UF}.topojson`.
+    12,5 MB + 1,1 MB no total; SP 3,5 MB e RJ 2,1 MB brutos, carregados só
+    quando escolhidos.
+  - Front: unidades "Bairros — capital" (polígonos; LISA por subdivisão,
+    as sem local de votação saem do grafo e ficam cinza) e "Locais de
+    votação — capital" (círculos com raio pela raiz do eleitorado, maiores
+    embaixo; sem LISA). Contorno: união das subdivisões / limite municipal.
+  - Verificado: 790 testes; QA com 38 cenários, incluindo LISA das
+    subdivisões = spdep (PE, SP, RJ, DF).
+- Próximo: Fase 6 (publicação).

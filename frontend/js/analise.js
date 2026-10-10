@@ -9,7 +9,7 @@ const Analise = (() => {
   const cacheUnidades = new Map();
   const cacheEntidades = new Map();
 
-  // --- escopo (uma UF ou "BR") ---------------------------------------------
+  // --- escopo (uma UF, "BR" ou a capital de uma UF) -------------------------
   async function carregarEscopo(uf) {
     const [votos, topo, candidatos] = await Promise.all([
       Dados.carregarJson(`output/votos/${uf}.json`),
@@ -17,7 +17,20 @@ const Analise = (() => {
       uf === "BR" ? Promise.resolve(null) : Dados.carregarJson(`output/candidatos/${uf}.json`),
     ]);
     const idxMuni = new Map(votos.municipios.map((c, i) => [c, i]));
-    return { uf, votos, topo, candidatos, idxMuni, n: votos.municipios.length };
+    return { uf, chave: uf, votos, topo, candidatos, idxMuni, n: votos.municipios.length };
+  }
+
+  // Capital (Fase 5): a "unidade básica" é o local de votação, no lugar do
+  // município; bairros/distritos/RAs juntam os locais que caem neles. O
+  // arquivo tem o mesmo formato de votos/{UF}.json, indexado por local.
+  async function carregarCapital(uf, infoCapital) {
+    const [votos, topoUf, candidatos, topo] = await Promise.all([
+      Dados.carregarJson(`output/capitais/${uf}.json`),
+      Dados.carregarJson(`output/geo/municipios_${uf}.topojson`),
+      Dados.carregarJson(`output/candidatos/${uf}.json`),
+      infoCapital.subdivisao ? Dados.carregarJson(`output/geo/subdivisoes_${uf}.topojson`) : Promise.resolve(null),
+    ]);
+    return { uf, chave: `${uf}:capital`, capital: true, votos, topo, topoUf, candidatos, n: votos.locais.nome.length };
   }
 
   // --- unidades ---------------------------------------------------------------
@@ -32,12 +45,19 @@ const Analise = (() => {
 
   // {features, unidadeDe (índice do município -> índice da unidade), n}
   function unidades(escopo, unidade, meta) {
-    const chaveCache = `${escopo.uf}:${unidade}`;
+    const chaveCache = `${escopo.chave}:${unidade}`;
     if (cacheUnidades.has(chaveCache)) return cacheUnidades.get(chaveCache);
-    const objeto = escopo.topo.objects.municipios;
     const unidadeDe = new Int32Array(escopo.n).fill(-1);
     let features;
 
+    if (escopo.capital) {
+      features = unidade === "local" ? feicoesLocais(escopo, unidadeDe) : feicoesSubdivisoes(escopo, unidadeDe);
+      const out = { features, unidadeDe, n: features.length, unidade };
+      cacheUnidades.set(chaveCache, out);
+      return out;
+    }
+
+    const objeto = escopo.topo.objects.municipios;
     if (unidade === "municipio") {
       features = topojson.feature(escopo.topo, objeto).features;
       features.forEach((f, u) => {
@@ -73,8 +93,65 @@ const Analise = (() => {
     return out;
   }
 
-  // Contorno das UFs do escopo (uma UF, ou as 27 no Brasil), só para desenhar.
-  function contornoUfs(escopo, meta) {
+  // Locais com coordenada viram pontos (sem coordenada: ficam no total da
+  // capital, fora do mapa). Raio pela raiz do eleitorado do local (área do
+  // círculo proporcional), de 2 a 9 px.
+  function feicoesLocais(escopo, unidadeDe) {
+    const l = escopo.votos.locais;
+    const aptos = escopo.votos.aptos;
+    const max = Math.max(1, ...aptos);
+    const features = [];
+    for (let i = 0; i < escopo.n; i++) {
+      if (l.lat[i] === null || l.lon[i] === null) continue;
+      features.push({
+        i,
+        type: "Feature",
+        properties: {
+          chave: String(i),
+          nome: Util.titulo(l.nome[i]),
+          // endereço e bairro como declarados no cadastro do TSE
+          detalhe: [l.endereco[i], l.bairro[i]].filter(Boolean).map(Util.titulo).join(" · "),
+          raio: 2 + 7 * Math.sqrt(aptos[i] / max),
+        },
+        geometry: { type: "Point", coordinates: [l.lon[i], l.lat[i]] },
+      });
+    }
+    // Maiores primeiro: os círculos pequenos ficam por cima e clicáveis.
+    features.sort((a, b) => b.properties.raio - a.properties.raio);
+    features.forEach((f, u) => {
+      unidadeDe[f.i] = u;
+    });
+    return features;
+  }
+
+  // Subdivisões na ordem do TopoJSON; cada local vai para a subdivisão em
+  // que cai (`subdiv`, índice `i` das propriedades); -1 = fora de todas.
+  function feicoesSubdivisoes(escopo, unidadeDe) {
+    const features = topojson.feature(escopo.topo, escopo.topo.objects.subdivisoes).features;
+    const posDe = new Map(features.map((f, u) => [f.properties.i, u]));
+    features.forEach((f) => {
+      f.properties.chave = String(f.properties.i);
+    });
+    escopo.votos.locais.subdiv.forEach((s, i) => {
+      if (s >= 0 && posDe.has(s)) unidadeDe[i] = posDe.get(s);
+    });
+    return features;
+  }
+
+  // Contorno: as UFs do escopo (uma UF, ou as 27 no Brasil); na capital, o
+  // limite do município -- nas subdivisões, a união delas (a malha municipal
+  // é mais simplificada e não casaria com a borda dos bairros). Só para
+  // desenhar.
+  function contornoUfs(escopo, meta, unidade) {
+    if (escopo.capital && unidade === "subdivisao") {
+      const sub = escopo.topo.objects.subdivisoes;
+      return [{ type: "Feature", properties: {}, geometry: topojson.merge(escopo.topo, sub.geometries) }];
+    }
+    if (escopo.capital) {
+      const objeto = escopo.topoUf.objects.municipios;
+      const geoms = objeto.geometries.filter((g) => g.properties.code_muni === escopo.votos.code_muni);
+      return topojson.feature(escopo.topoUf, { type: "GeometryCollection", geometries: geoms }).features;
+    }
     return unidades(escopo, "uf", meta).features;
   }
 
@@ -218,5 +295,31 @@ const Analise = (() => {
     return LISA.classificar(fracMun, escopo.votos.vizinhos);
   }
 
-  return { carregarEscopo, unidades, contornoUfs, entidades, agregar, totais, fracoes, lideres, teto, lisa };
+  // LISA das subdivisões da capital, sobre o % por subdivisão (`fr`, na
+  // ordem das feições). Subdivisão sem local de votação (parque, área sem
+  // eleitor) não tem valor: sai do grafo de vizinhança e fica null.
+  function lisaSubdivisoes(escopo, uns, fr, validos) {
+    const viz = escopo.votos.vizinhos;
+    const posDe = uns.features.map((f) => f.properties.i);
+    const uDe = new Map(posDe.map((i, u) => [i, u]));
+    const comDado = posDe.map((i, u) => validos[u] > 0);
+    // índices (i) com dado -> posição compacta
+    const compacto = new Map();
+    posDe.forEach((i, u) => {
+      if (comDado[u]) compacto.set(i, compacto.size);
+    });
+    const valores = new Array(compacto.size);
+    const vizC = new Array(compacto.size);
+    compacto.forEach((c, i) => {
+      valores[c] = fr[uDe.get(i)];
+      vizC[c] = (viz[i] || []).filter((j) => compacto.has(j)).map((j) => compacto.get(j));
+    });
+    const classes = LISA.classificar(valores, vizC);
+    return posDe.map((i) => (compacto.has(i) ? classes[compacto.get(i)] : null));
+  }
+
+  return {
+    carregarEscopo, carregarCapital, unidades, contornoUfs, entidades, agregar, totais, fracoes, lideres, teto, lisa,
+    lisaSubdivisoes,
+  };
 })();

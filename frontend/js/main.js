@@ -43,13 +43,17 @@
   mostrarAba(abaAtual);
   status.textContent = "Carregando...";
   try {
-    const meta = await Dados.carregarJson("output/meta.json");
+    const [meta, capitais] = await Promise.all([
+      Dados.carregarJson("output/meta.json"),
+      // Piloto de bairros/locais (Fase 5); sem ele, o mapa só perde essas unidades.
+      Dados.carregarJson("output/capitais/index.json").catch(() => ({})),
+    ]);
     // Cada painel lê da URL só o que é dele; o da aba fora de foco começa
     // no padrão.
     const doMapa = abaAtual === "mapa" ? inicial : {};
     const daComposicao = abaAtual === "composicao" ? inicial : {};
     await Promise.all([
-      PainelMapa.iniciar(doMapa, meta, gravarUrl),
+      PainelMapa.iniciar(doMapa, meta, capitais, gravarUrl),
       Composicao.iniciar(daComposicao, meta, gravarUrl, async (alvo) => {
         mostrarAba("mapa");
         await PainelMapa.mostrarCandidato(alvo);

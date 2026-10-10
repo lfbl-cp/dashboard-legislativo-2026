@@ -17,6 +17,10 @@
 #   geografia   malha municipal (IBGE/geobr) + micro/meso -> output/geo/
 #   exportar    meta.json, votos/{UF}.json, votos/BR.json, candidatos/{UF}.json
 #               (somas validadas contra o detalhe oficial do TSE)
+#   capitais    piloto de bairros e locais de votação nas 27 capitais
+#               (votacao_secao + cadastro de locais) -> capitais/{UF}.json,
+#               geo/subdivisoes_{UF}.topojson (somas conferidas contra o
+#               munzona; precisa de exportar)
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -31,7 +35,7 @@ local({
 })
 for (f in sort(list.files("R", pattern = "\\.R$", full.names = TRUE))) source(f, encoding = "UTF-8")
 
-ETAPAS <- c("candidatos", "votos", "fotos", "composicao", "geografia", "exportar")
+ETAPAS <- c("candidatos", "votos", "fotos", "composicao", "geografia", "exportar", "capitais")
 
 args <- commandArgs(trailingOnly = TRUE)
 etapas <- ETAPAS
@@ -197,6 +201,74 @@ etapa_exportar <- function() {
               length(UFS_BRASIL)))
   cat(sprintf("output/votos/: %.1f MB (BR.json %.1f MB) | output/candidatos/: %.1f MB\n",
               tam("votos"), file.size(file.path(DIR_OUTPUT, "votos", "BR.json")) / 1024^2, tam("candidatos")))
+}
+
+# --- capitais ----------------------------------------------------------------------
+etapa_capitais <- function() {
+  ler <- function(nome) readRDS(file.path(DIR_PROCESSED, paste0(nome, ".rds")))
+  candidatos <- ler("candidatos")
+  partidos <- ler("partidos")
+  votos_mun <- ler("votos_candidato_municipio")
+  municipios <- ler("municipios")
+  if (!file.exists(file.path(DIR_OUTPUT, "votos", "PE.json"))) stop("Rode a etapa exportar antes das capitais.")
+  cw <- ler_crosswalk_tse_ibge()
+  malha <- ler_geobr_cache(sprintf("municipios_%d", ANO_MALHA), function() stop("Rode a etapa geografia antes."))
+
+  indice <- list()
+  resumo <- list()
+  for (uf in UFS_BRASIL) {
+    code <- CAPITAIS[[uf]]
+    cd <- cw$cd_municipio_tse[cw$code_muni == code]
+    s <- obter_secao_capital(uf, cd)
+    v <- classificar_votos_secao(s$votos, candidatos, partidos, validos_munzona_capital(uf, cd, votos_mun))
+    locais <- montar_locais(s$secoes, ler_locais_capital(uf, cd))
+    locais <- conferir_coordenadas(locais, malha[as.integer(malha$code_muni) == code, ])
+    subdiv <- montar_subdivisoes(uf)
+    locais$subdiv <- atribuir_subdivisao(locais, subdiv)
+
+    exib <- candidatos$sq_candidato[candidatos$exibir & candidatos$ano == ANO & candidatos$uf == uf]
+    cap <- montar_votos_capital(v, locais, exib)
+    dif <- conferir_capital(cap, uf)
+    if (nrow(dif) > 0) {
+      print(dif)
+      stop(sprintf("%s: soma dos locais da capital != munzona", uf))
+    }
+
+    nome <- municipios$name_muni[municipios$code_muni == code]
+    rot <- if (is.null(subdiv)) NULL else attr(subdiv, "rotulos")
+    texto <- function(x) I(ifelse(is.na(x), "", x))
+    out <- c(
+      list(uf = uf, code_muni = code, nome = nome, subdivisao = rot,
+           locais = list(nome = texto(locais$nome), endereco = texto(locais$endereco),
+                         bairro = texto(locais$bairro_tse), lat = I(round(locais$lat, 5)),
+                         lon = I(round(locais$lon, 5)), subdiv = I(locais$subdiv), secoes = I(locais$secoes)),
+           aptos = denso(seq_len(nrow(locais)), locais$eleitores, seq_len(nrow(locais)))),
+      cap,
+      list(vizinhos = vizinhos_subdivisoes(subdiv))
+    )
+    arq <- exportar_json(out, file.path(DIR_OUTPUT, "capitais", paste0(uf, ".json")))
+    if (!is.null(subdiv)) {
+      exportar_topojson_subdivisoes(subdiv, file.path(DIR_OUTPUT, "geo", sprintf("subdivisoes_%s.topojson", uf)))
+    }
+    indice[[uf]] <- list(nome = nome, code_muni = code, subdivisao = rot,
+                         n_subdivisoes = if (is.null(subdiv)) 0L else nrow(subdiv), n_locais = nrow(locais))
+
+    val <- cap$cargos$federal$validos
+    resumo[[uf]] <- data.frame(
+      uf, capital = nome, locais = nrow(locais), cadastro_original = sum(locais$casou %in% "original"),
+      sem_cadastro = sum(is.na(locais$casou)), sem_coord = sum(is.na(locais$lat)),
+      coord_descartada = sum(locais$coord_descartada), subdivisoes = indice[[uf]]$n_subdivisoes,
+      fora_subdiv = if (is.null(subdiv)) NA else sum(locais$subdiv < 0),
+      pct_validos_fora = if (is.null(subdiv)) NA else round(100 * sum(val[locais$subdiv < 0]) / sum(val), 2),
+      kb = round(file.size(arq) / 1024)
+    )
+  }
+  exportar_json(indice, file.path(DIR_OUTPUT, "capitais", "index.json"))
+  cat("Somas dos locais conferidas contra o munzona em todas as capitais (comparecimento, válidos, brancos, nulos, partidos).\n")
+  print(data.table::rbindlist(resumo), row.names = FALSE)
+  tam <- function(p) sum(file.size(list.files(file.path(DIR_OUTPUT, p), full.names = TRUE))) / 1024^2
+  cat(sprintf("output/capitais/: %.1f MB | subdivisões: %.1f MB\n", tam("capitais"),
+              sum(file.size(list.files(file.path(DIR_OUTPUT, "geo"), "^subdivisoes_", full.names = TRUE))) / 1024^2))
 }
 
 for (e in etapas) {

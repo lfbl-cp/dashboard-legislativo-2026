@@ -175,6 +175,33 @@ cenario("mapa_tema_claro", "aba=mapa&cargo=federal&uf=BA&agrupar=federacao&modo=
 js("localStorage.clear()")
 cenario("mapa_celular", "aba=mapa&cargo=federal&uf=RJ", list(unidades = n_mun("RJ")), w = 390, h = 844, mobile = TRUE)
 
+# --- capitais: bairros e locais de votação (Fase 5) ------------------------------------
+capitais <- jsonlite::fromJSON("output/capitais/index.json", simplifyVector = FALSE)
+n_sub <- function(uf) as.integer(capitais[[uf]]$n_subdivisoes)
+n_loc_mapa <- function(uf) {
+  l <- jsonlite::fromJSON(sprintf("output/capitais/%s.json", uf))$locais
+  sum(!is.na(l$lat))
+}
+# Clica no maior local de votação desenhado (o 1º: maiores vêm primeiro).
+clicar_local <- function() {
+  p <- unlist(js("Mapa.pontoTela(0)"))
+  clicar_mapa(p[1], p[2])
+}
+cenario("cap_pe_bairros", "aba=mapa&cargo=federal&uf=PE&unidade=subdivisao", list(unidades = n_sub("PE")))
+cenario("cap_pe_locais_popup", "aba=mapa&cargo=estadual&uf=PE&unidade=local",
+        list(unidades = n_loc_mapa("PE"), popup = TRUE), acao = clicar_local)
+cenario("cap_sp_distritos_lisa", "aba=mapa&cargo=federal&uf=SP&unidade=subdivisao&modo=lisa&alvo=PL",
+        list(unidades = n_sub("SP"), modo = "lisa"))
+cenario("cap_sp_locais_senador_cand", "aba=mapa&cargo=senador&uf=SP&unidade=local&agrupar=candidato",
+        list(unidades = n_loc_mapa("SP"), agrupar = "candidato", modo = "lider"))
+cenario("cap_df_ras_candidato", "aba=mapa&cargo=estadual&uf=DF&unidade=subdivisao&agrupar=candidato&modo=continuo",
+        list(unidades = n_sub("DF"), card = TRUE))
+cenario("cap_ac_sem_bairro", "aba=mapa&cargo=federal&uf=AC&unidade=subdivisao", list(unidades = n_mun("AC")))
+cenario("cap_ac_locais", "aba=mapa&cargo=federal&uf=AC&unidade=local&modo=lisa", list(unidades = n_loc_mapa("AC"), modo = "continuo"))
+cenario("cap_br_local_invalido", "aba=mapa&cargo=federal&uf=BR&unidade=local", list(unidades = 5571L))
+cenario("cap_rj_bairros_celular", "aba=mapa&cargo=federal&uf=RJ&unidade=subdivisao&agrupar=federacao",
+        list(unidades = n_sub("RJ")), w = 390, h = 844, mobile = TRUE)
+
 # --- LISA: navegador x spdep -----------------------------------------------------------
 lisa_spdep <- function(x, viz) {
   n <- length(x)
@@ -210,6 +237,47 @@ for (caso in casos_lisa) {
     unidades = length(x), card = NA, popup = NA,
     problemas = if (dif > 0) sprintf("%d de %d municípios divergem do spdep", dif, length(x)) else "",
     ok = dif == 0
+  )
+}
+
+# LISA das subdivisões da capital: navegador (Analise.lisaSubdivisoes, que
+# tira do grafo as subdivisões sem local de votação) x spdep no mesmo subgrafo.
+casos_cap <- list(c("PE", "federal", "PSB"), c("SP", "federal", "PL"), c("RJ", "estadual", "PL"), c("DF", "federal", "PT"))
+for (caso in casos_cap) {
+  cap <- jsonlite::fromJSON(sprintf("output/capitais/%s.json", caso[1]), simplifyVector = FALSE)
+  cg <- cap$cargos[[caso[2]]]
+  sub <- unlist(cap$locais$subdiv)
+  ns <- length(cap$vizinhos)
+  soma <- function(v) vapply(seq_len(ns) - 1L, function(s) sum(v[sub == s]), numeric(1))
+  val_s <- soma(unlist(cg$validos))
+  vot_s <- soma(unlist(cg$partidos[[caso[3]]]))
+  com <- which(val_s > 0) - 1L
+  x <- vot_s[com + 1] / val_s[com + 1]
+  viz <- lapply(com, function(i) {
+    v <- as.integer(unlist(cap$vizinhos[[i + 1]]))
+    match(v[v %in% com], com) - 1L
+  })
+  r <- lisa_spdep(x, viz)
+  navegador <- unlist(js(sprintf(
+    "(async () => {
+      const meta = await Dados.carregarJson('output/meta.json');
+      const idx = await Dados.carregarJson('output/capitais/index.json');
+      const e = await Analise.carregarCapital('%1$s', idx['%1$s']);
+      const uns = Analise.unidades(e, 'subdivisao', meta);
+      const tot = Analise.totais(e, '%2$s', uns);
+      const ent = Analise.entidades(e, '%2$s', 'partido', meta).find((x) => x.chave === '%3$s');
+      const cl = Analise.lisaSubdivisoes(e, uns, Analise.fracoes(ent, uns, tot.validos), tot.validos);
+      const porI = [];
+      uns.features.forEach((f, u) => { porI[f.properties.i] = cl[u]; });
+      return porI.filter((c) => c);
+    })()", caso[1], caso[2], caso[3])))
+  dif <- if (length(navegador) != length(r)) NA else sum(r != navegador)
+  resultados[[paste("lisa_cap", caso[1])]] <- data.frame(
+    cenario = sprintf("lisa_capital_%s_%s_%s", caso[1], caso[2], caso[3]), aba = "-", cadeiras = NA,
+    unidades = length(x), card = NA, popup = NA,
+    problemas = if (is.na(dif)) sprintf("navegador classificou %d, spdep %d", length(navegador), length(r))
+                else if (dif > 0) sprintf("%d de %d subdivisões divergem do spdep", dif, length(x)) else "",
+    ok = isTRUE(dif == 0)
   )
 }
 

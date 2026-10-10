@@ -42,6 +42,18 @@ const Util = (() => {
     return t.charAt(0).toUpperCase() + t.slice(1);
   }
 
+  // "ESCOLA MUNICIPAL DE AREIAS" -> "Escola Municipal de Areias" (nomes e
+  // endereços de locais de votação, que o TSE grava em maiúsculas).
+  const MINUSCULAS = new Set(["de", "da", "do", "das", "dos", "e", "a", "o", "em", "na", "no"]);
+  function titulo(texto) {
+    if (!texto) return "";
+    return String(texto)
+      .toLowerCase()
+      .split(/(\s+)/)
+      .map((p, k) => (k > 0 && MINUSCULAS.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+      .join("");
+  }
+
   // --- estado na URL: o link compartilhado abre na mesma visão ------------
   function lerEstado() {
     const params = new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -56,5 +68,5 @@ const Util = (() => {
     history.replaceState(null, "", `#${params.toString()}`);
   }
 
-  return { esc, pct, pctBr: pct, pp, iniciais, capitalizar, lerEstado, gravarEstado };
+  return { esc, pct, pctBr: pct, pp, iniciais, capitalizar, titulo, lerEstado, gravarEstado };
 })();

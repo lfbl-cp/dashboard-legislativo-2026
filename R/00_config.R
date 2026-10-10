@@ -54,6 +54,18 @@ url_senado_legislatura <- function(n) sprintf("https://legis.senado.leg.br/dados
 url_partido_munzona <- function(ano) sprintf("%s/odsele/votacao_partido_munzona/votacao_partido_munzona_%d.zip", URL_TSE, ano)
 url_detalhe_munzona <- function(ano) sprintf("%s/odsele/detalhe_votacao_munzona/detalhe_votacao_munzona_%d.zip", URL_TSE, ano)
 url_munzona       <- function(ano) sprintf("%s/odsele/votacao_candidato_munzona/votacao_candidato_munzona_%d.zip", URL_TSE, ano)
+url_votacao_secao <- function(ano, uf) sprintf("%s/odsele/votacao_secao/votacao_secao_%d_%s.zip", URL_TSE, ano, uf)
+url_locais        <- function(ano) sprintf("%s/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_%d.zip", URL_TSE, ano)
+
+# Capitais (código IBGE) -- piloto de bairros e locais de votação (Fase 5).
+CAPITAIS <- c(
+  AC = 1200401L, AL = 2704302L, AM = 1302603L, AP = 1600303L, BA = 2927408L,
+  CE = 2304400L, DF = 5300108L, ES = 3205309L, GO = 5208707L, MA = 2111300L,
+  MG = 3106200L, MS = 5002704L, MT = 5103403L, PA = 1501402L, PB = 2507507L,
+  PE = 2611606L, PI = 2211001L, PR = 4106902L, RJ = 3304557L, RN = 2408102L,
+  RO = 1100205L, RR = 1400100L, RS = 4314902L, SC = 4205407L, SE = 2800308L,
+  SP = 3550308L, TO = 1721000L
+)
 
 # O CDN do TSE devolve 403 sem User-Agent de navegador.
 UA_NAVEGADOR <- "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
