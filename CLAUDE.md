@@ -138,7 +138,8 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
     contagem de cadeiras = tamanho da Casa em todos, 27 vazadas no Senado,
     card e tooltip funcionando; capturas conferidas visualmente (desktop
     escuro/claro, celular 390px).
-- **Economia de dados (discussão com o usuário, em andamento)**:
+- **Economia de dados (decidida com o usuário; tabela completa em
+  PLANO.md)**:
   - Decidido: deputados exibidos = eleitos + 3 primeiros suplentes por
     lista. Nova etapa `votos` (entre `candidatos` e `fotos`) ordena a
     suplência por votos e redefine `exibir`; `fotos` apaga as de quem
@@ -147,6 +148,18 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
     único sem é candidatura ao Senado sem totalização, sem foto no TSE).
     Teste: nenhum suplente supera o eleito menos votado da lista; 1º
     suplente = mais votado. 21 testes passando.
-  - Ainda em aberto: redes no `composicao.json` (~710 KB), formato dos
-    dados de votação da Fase 3, bairros/locais (Fase 5). As ~9.800 fotos
-    removidas continuam no histórico do git (commit 1df0850).
+  - Histórico do git reescrito (filter-branch) para as ~9.800 fotos
+    removidas nunca terem entrado: `.git` de 72 MB para 18 MB.
+  - Votação (Fase 3): **um JSON por UF** só com votos inteiros por
+    município (partidos = nominal + legenda; candidatos exibidos; totais
+    de válidos); %, agregação micro/meso/UF, líder e LISA no navegador.
+    Medido: candidatos exibidos 863 mil pares candidato x município (7,2 MB
+    brutos / 2,5 MB gzip no país), partidos 310 mil pares (2,7 / 1,0 MB).
+    Não seguir o modelo do clone (um arquivo pré-calculado por
+    cargo x unidade x candidato).
+  - Visão "Brasil": por município, geometria nacional (~1,65 MB gzip)
+    só quando escolhida.
+  - Card do candidato: arquivo de candidatos por UF compartilhado por mapa
+    e hemiciclo, carregado no clique; `composicao.json` deve ficar só com
+    o essencial da cadeira (hoje ainda tem tudo -- ajustar na Fase 3/4).
+  - Bairros/locais (Fase 5): piloto nas 27 capitais.

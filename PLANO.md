@@ -29,6 +29,19 @@ Base:
 | LISA | Calculado no navegador (`lisa.js` do painel PE), com vizinhança queen exportada por UF. |
 | Repositório | Git novo na raiz de `Dashboard-legislativo-2026/`; `painel-eleicoes-2026/` fica fora do git. |
 
+## Economia de dados (decidido em 10/10/2026)
+
+Medição feita com os dados reais de 2026: a votação pesa pouco; o mais
+pesado é a geometria municipal.
+
+| Tema | Decisão |
+|---|---|
+| Votação (Fase 3) | **Um arquivo por UF** com só votos inteiros por município (partidos com todos os votos + legenda, candidatos exibidos, totais de válidos). Percentuais, agregação micro/meso/UF, líder e LISA calculados no navegador. Brasil inteiro: ~10 MB brutos / ~3,5 MB gzip; carrega só a UF vista (MG, a maior, ~0,6 MB gzip). |
+| Visão "Brasil" | **Município**, geometria nacional (~1,65 MB gzip) carregada só quando "Brasil" é escolhido; numa UF, só a geometria dela. |
+| Card do candidato | **Arquivo de candidatos por UF compartilhado** por mapa e hemiciclo, carregado no clique. `composicao.json` fica só com o essencial de cada cadeira (sem redes/ocupação/etc.). |
+| Bairros e locais (Fase 5) | **Piloto nas 27 capitais**; ampliar depois. |
+| Suplentes | Eleitos + 3 primeiros suplentes por lista (ver Decisões). Fotos 71 MB -> 17,5 MB; histórico do git reescrito para não carregar as fotos removidas. |
+
 ## Navegação
 
 **Modelo de tela (decisão do usuário, evita retrabalho):** igual ao clone —
@@ -56,7 +69,7 @@ SVG próprio (arcos concêntricos), sem dependência externa.
 | 2 | Hemiciclos | JSON de composição (Câmara, Senado, 27 assembleias) + aba Composição |
 | 3 | Votos por município | munzona 2026: partido (todos + legenda) e candidato (eleitos/suplentes; senador todos), 27 UFs |
 | 4 | Mapa nacional | Front do clone estendido: proporcionais, Partido/Federação, LISA no navegador, card/fotos |
-| 5 | Bairros e locais | votação por seção UF a UF (processa e descarta o bruto), locais geocodificados, bairros com malha IBGE |
+| 5 | Bairros e locais | piloto nas 27 capitais: votação por seção UF a UF (processa e descarta o bruto), locais geocodificados, bairros com malha IBGE |
 | 6 | Publicação | GitHub Pages; checar tamanho de `output/` e política dos tiles |
 
 ## Riscos
