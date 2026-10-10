@@ -3,8 +3,10 @@ ler_json <- function(p) jsonlite::fromJSON(p, simplifyVector = TRUE)
 
 test_that("pares esparsos e vetores densos seguem a ordem dos municípios", {
   mun <- c(10L, 20L, 30L)
-  expect_equal(denso(c(30L, 10L), c(5, 7), mun), c(7L, 0L, 5L))
-  expect_equal(esparso(c(30L, 10L), c(5, 7), mun), c(0L, 7L, 2L, 5L))
+  # unclass(): tira o I() que força lista no JSON (ver denso()).
+  expect_equal(unclass(denso(c(30L, 10L), c(5, 7), mun)), c(7L, 0L, 5L))
+  expect_equal(unclass(esparso(c(30L, 10L), c(5, 7), mun)), c(0L, 7L, 2L, 5L))
+  expect_equal(jsonlite::toJSON(list(a = denso(10L, 3, 10L)), auto_unbox = TRUE), jsonlite::toJSON(list(a = list(3L)), auto_unbox = TRUE))
 })
 
 test_that("votos por UF cobrem os 5.571 municípios e fecham com os válidos", {

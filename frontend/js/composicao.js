@@ -9,6 +9,7 @@ const Composicao = (() => {
   let desenho = null; // retorno de Hemiciclo.desenhar()
   const estado = { casa: "camara", uf: "SP", destaque: "", agrupar: "partido", grupo: null, sq: null };
   let aoMudarEstado = () => {};
+  let aoVerNoMapa = () => {};
 
   const el = (id) => document.getElementById(id);
 
@@ -195,6 +196,7 @@ const Composicao = (() => {
       uf: c ? c.uf : null,
       meta,
       aoFechar: () => selecionar(estado.sq),
+      aoVerNoMapa: (cand) => aoVerNoMapa({ cargo: cand.cargo, uf: cand.uf, sq: cand.sq }),
     });
   }
 
@@ -244,8 +246,10 @@ const Composicao = (() => {
 
   // inicial: valores lidos da URL (validados aqui; inválido cai no padrão).
   // metaCarregado: output/meta.json (carregado uma vez em main.js, comum ao mapa).
-  async function iniciar(inicial, metaCarregado, callbackEstado) {
+  // callbackVerNoMapa({cargo, uf, sq}): botão "Ver no mapa" do card.
+  async function iniciar(inicial, metaCarregado, callbackEstado, callbackVerNoMapa) {
     aoMudarEstado = callbackEstado || aoMudarEstado;
+    aoVerNoMapa = callbackVerNoMapa || aoVerNoMapa;
     meta = metaCarregado;
     dados = await Dados.carregarJson("output/composicao.json");
     if (["camara", "senado", "assembleia"].includes(inicial.casa)) estado.casa = inicial.casa;

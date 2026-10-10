@@ -31,7 +31,37 @@
   </nav>
 
   <section id="painel-mapa" data-aba-painel="mapa">
-    <p class="aviso">Mapa de resultados por município em construção.</p>
+    <label>
+      Cargo
+      <select id="sel-cargo"></select>
+    </label>
+    <label>
+      UF
+      <select id="sel-uf"></select>
+    </label>
+    <label>
+      Unidade de análise
+      <select id="sel-unidade"></select>
+    </label>
+    <div class="campo">
+      <span class="campo-titulo">Agrupar por</span>
+      <div class="segmentado" id="seg-agrupar-mapa">
+        <button type="button" data-valor="partido">Partido</button>
+        <button type="button" data-valor="federacao">Federação</button>
+        <button type="button" data-valor="candidato">Candidato</button>
+      </div>
+    </div>
+    <label>
+      Modo
+      <select id="sel-modo"></select>
+    </label>
+    <label id="label-alvo">
+      <span id="label-alvo-titulo">Partido</span>
+      <select id="sel-alvo"></select>
+    </label>
+    <div id="resumo-mapa"></div>
+    <div id="legenda-mapa"></div>
+    <div id="card-mapa" class="card" hidden></div>
   </section>
 
   <section id="painel-composicao" data-aba-painel="composicao">
@@ -59,7 +89,7 @@
       </div>
     </div>
     <div id="legenda-composicao"></div>
-    <div id="card-eleito" hidden></div>
+    <div id="card-eleito" class="card" hidden></div>
     <p class="legenda-nota" id="fonte-ideologia"></p>
   </section>
 
@@ -67,13 +97,18 @@
 </aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <script src="js/dados.js"></script>
 <script src="js/util.js"></script>
+<script src="js/cores.js"></script>
+<script src="js/lisa.js"></script>
+<script src="js/analise.js"></script>
 <script src="js/mapa.js"></script>
 <script src="js/tema.js"></script>
 <script src="js/card.js"></script>
 <script src="js/hemiciclo.js"></script>
 <script src="js/composicao.js"></script>
+<script src="js/painel_mapa.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

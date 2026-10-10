@@ -62,25 +62,27 @@ com_ibge <- function(x, crosswalk) {
   x
 }
 
-# Vetor denso na ordem de `municipios` (0 onde não houve voto).
+# Vetor denso na ordem de `municipios` (0 onde não houve voto). I(): o
+# auto_unbox do jsonlite transformaria o vetor de 1 elemento do DF (um só
+# município) em número solto, e o front-end espera lista.
 denso <- function(codigos, valores, municipios) {
   v <- integer(length(municipios))
   v[match(codigos, municipios)] <- as.integer(valores)
-  v
+  I(v)
 }
 
 # Pares esparsos [i0, votos, i1, votos, ...] (índice base 0).
 esparso <- function(codigos, valores, municipios) {
   i <- match(codigos, municipios) - 1L
   o <- order(i)
-  as.vector(rbind(i[o], as.integer(valores[o])))
+  I(as.vector(rbind(i[o], as.integer(valores[o]))))
 }
 
 # Estrutura de um escopo (uma UF, ou "BR" sem candidatos).
 montar_votos_escopo <- function(municipios, detalhe, partidos, candidatos_votos = NULL) {
   apt <- detalhe[cargo == "federal"]
   out <- list(
-    municipios = municipios,
+    municipios = I(municipios),
     aptos = denso(apt$code_muni, apt$aptos, municipios),
     comparecimento = denso(apt$code_muni, apt$comparecimento, municipios),
     cargos = list()
@@ -147,7 +149,25 @@ montar_candidatos_uf <- function(cand) {
   stats::setNames(lista, cand$sq_candidato)
 }
 
-montar_meta <- function(partidos, federacoes) {
+# Vizinhança queen dos municípios de uma UF (para o LISA no navegador),
+# calculada na geometria completa (não na simplificada do TopoJSON), na ordem
+# de `municipios`; índices base 0. Município sem vizinho (ilha, ex. Fernando
+# de Noronha; ou UF de 1 município, DF) fica com lista vazia -> "Não
+# significante", como no painel de PE (validado contra o spdep).
+vizinhos_queen <- function(mun_sf, municipios) {
+  s <- mun_sf[match(municipios, mun_sf$code_muni), ]
+  if (nrow(s) < 2) return(list(I(integer(0))))
+  sf::sf_use_s2(FALSE)
+  on.exit(sf::sf_use_s2(TRUE), add = TRUE)
+  nb <- suppressWarnings(spdep::poly2nb(s, queen = TRUE))
+  lapply(nb, function(v) I(as.integer(v[v > 0] - 1L)))
+}
+
+montar_meta <- function(partidos, federacoes, municipios) {
+  regioes <- function(cod, nome) {
+    u <- unique(data.frame(cod = as.character(cod), nome = nome))
+    stats::setNames(as.list(u$nome), u$cod)
+  }
   list(
     ano = ANO,
     ano_senado_anterior = ANO_SENADO_ANTERIOR,
@@ -156,6 +176,8 @@ montar_meta <- function(partidos, federacoes) {
     fonte_ideologia = paste("Bolognesi, Ribeiro, Codato & Silva (2025), Opinião Pública 31,",
                             "e31120 — média dos experts em 2022 (0 = esquerda, 10 = direita)"),
     ufs = I(UFS_BRASIL),
+    microrregioes = regioes(municipios$code_micro, municipios$name_micro),
+    mesorregioes = regioes(municipios$code_meso, municipios$name_meso),
     partidos = stats::setNames(lapply(seq_len(nrow(partidos)), function(i) {
       list(rotulo = partidos$rotulo[i], cor = partidos$cor[i], ideologia = partidos$ideologia[i],
            federacao = if (is.na(partidos$nr_federacao[i])) NULL else as.character(partidos$nr_federacao[i]))

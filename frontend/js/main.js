@@ -3,10 +3,13 @@
 (async function main() {
   const status = document.getElementById("status");
   const inicial = Util.lerEstado();
-  let abaAtual = inicial.aba === "mapa" ? "mapa" : "composicao";
+  let abaAtual = inicial.aba === "composicao" ? "composicao" : "mapa";
+  let prontos = false;
 
   function gravarUrl() {
-    Util.gravarEstado({ aba: abaAtual, ...(abaAtual === "composicao" ? Composicao.estadoUrl() : {}) });
+    if (!prontos) return;
+    const doPainel = abaAtual === "composicao" ? Composicao.estadoUrl() : PainelMapa.estadoUrl();
+    Util.gravarEstado({ aba: abaAtual, ...doPainel });
   }
 
   function mostrarAba(aba) {
@@ -29,6 +32,7 @@
 
   Mapa.iniciar();
   Tema.iniciar();
+  Card.instalarFallbackFotos();
 
   // O painel flutua sobre o mapa: sem isso, clicar/rolar nele também
   // arrasta/dá zoom no mapa por baixo.
@@ -37,11 +41,22 @@
   L.DomEvent.disableScrollPropagation(painel);
 
   mostrarAba(abaAtual);
-  Card.instalarFallbackFotos();
-  status.textContent = "Carregando composição...";
+  status.textContent = "Carregando...";
   try {
     const meta = await Dados.carregarJson("output/meta.json");
-    await Composicao.iniciar(inicial, meta, gravarUrl);
+    // Cada painel lê da URL só o que é dele; o da aba fora de foco começa
+    // no padrão.
+    const doMapa = abaAtual === "mapa" ? inicial : {};
+    const daComposicao = abaAtual === "composicao" ? inicial : {};
+    await Promise.all([
+      PainelMapa.iniciar(doMapa, meta, gravarUrl),
+      Composicao.iniciar(daComposicao, meta, gravarUrl, async (alvo) => {
+        mostrarAba("mapa");
+        await PainelMapa.mostrarCandidato(alvo);
+      }),
+    ]);
+    prontos = true;
+    gravarUrl();
     status.textContent = "";
   } catch (e) {
     status.textContent = `Erro ao carregar dados: ${e.message}`;

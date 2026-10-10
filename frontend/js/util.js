@@ -20,8 +20,14 @@ const Util = (() => {
     return String(texto ?? "").replace(/[&<>"']/g, (c) => ESCAPES[c]);
   }
 
+  // x é fração (0-1): pct(0.1234) -> "12,3%".
   function pct(x, casas = 1) {
     return `${(100 * x).toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas })}%`;
+  }
+
+  // Diferença entre frações em pontos percentuais: pp(0.05) -> "5,0 p.p.".
+  function pp(x) {
+    return `${(100 * x).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} p.p.`;
   }
 
   function iniciais(nome) {
@@ -50,5 +56,5 @@ const Util = (() => {
     history.replaceState(null, "", `#${params.toString()}`);
   }
 
-  return { esc, pct, iniciais, capitalizar, lerEstado, gravarEstado };
+  return { esc, pct, pctBr: pct, pp, iniciais, capitalizar, lerEstado, gravarEstado };
 })();

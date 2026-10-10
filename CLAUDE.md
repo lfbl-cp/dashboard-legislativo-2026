@@ -194,4 +194,33 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
     de PE: diferenças pequenas (≤0,1% por partido) explicadas por data de
     geração (PE usou arquivos de 06/10; aqui, 10/10 12:31) e por votos
     anulados sub judice (batem exatamente em PCO, PSDB, NOVO).
-- Próximo: Fase 4 (mapa nacional no front-end).
+- **Fase 4 (mapa)** completa -- aba Mapa é a padrão:
+  - Módulos: `analise.js` (escopo = votos + geometria + candidatos da UF ou
+    BR; micro/meso/UF fundidos com `topojson.merge`; entidades partido /
+    federação = soma dos membros / candidato; agregação, %, líder com
+    margem e intensidade como no clone, teto da escala contínua no
+    percentil 98), `lisa.js` (do painel de PE), `painel_mapa.js`
+    (seletores, legenda, resumo, popup, card), `mapa.js` (Leaflet canvas,
+    contorno de UF por cima, linha por zoom do clone, enquadramento que
+    desconta o painel), `card.js` (compartilhado com o hemiciclo; "Ver no
+    mapa" no card do hemiciclo abre o contínuo do eleito na UF dele).
+  - Combinações (`normalizar()` em painel_mapa.js): unidade "uf" só no
+    Brasil; agrupar por candidato só numa UF e, para deputados, não em
+    "quem lidera" (só eleitos + 3 suplentes exportados -> o mais votado
+    do município poderia não estar entre eles); LISA só por município,
+    numa UF, fora o DF (1 município). URL inválida é corrigida.
+  - Vizinhança queen exportada por UF em `votos/{UF}.json` (`vizinhos`,
+    calculada no R na geometria completa); `meta.json` traz nomes de
+    micro/meso. Vetores sempre com `I()` no R: o auto_unbox virava número
+    solto no DF (1 município) e quebrava o front.
+  - **Zoom só inteiro**: com `zoomSnap` fracionário apareciam costuras de
+    1 px entre blocos de tiles do mapa-base (testado: some sem tiles;
+    sobreposição de meio pixel e `mix-blend-mode: plus-lighter` não
+    resolvem). Brasil fica um pouco menor; é o comportamento do clone.
+  - Verificado (`tests/qa_frontend.R`, 25 cenários, sem erro de JS/HTTP):
+    nº de unidades desenhadas (5.571 / 137 meso / 27 UF / UF), popup,
+    card, link hemiciclo -> mapa, URLs inválidas corrigidas, celular e
+    tema claro; **LISA do navegador = spdep::localmoran em 100% dos
+    municípios** (PE, SP, BA, MG; 2.100 municípios). Capturas conferidas.
+- Próximo: Fase 5 (bairros e locais, piloto nas capitais) e Fase 6
+  (publicação).

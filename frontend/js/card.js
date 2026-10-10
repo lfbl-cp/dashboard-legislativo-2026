@@ -62,10 +62,15 @@ const Card = (() => {
   }
 
   // Renderiza o card de `sq` (da UF `uf`) em `container`. `aoFechar` liga o
-  // botão Fechar. Ignora respostas que chegam depois de outro clique.
-  let pedidoAtual = 0;
-  async function renderizar(container, { sq, uf, meta, aoFechar }) {
-    const pedido = ++pedidoAtual;
+  // botão Fechar; `aoVerNoMapa(c)`, se dado, mostra o botão "Ver no mapa"
+  // (só para quem tem votos nesta eleição). Ignora respostas que chegam
+  // depois de outro clique. Um contador por contêiner (hemiciclo e mapa
+  // têm cards independentes).
+  const pedidos = new WeakMap();
+  async function renderizar(container, { sq, uf, meta, aoFechar, aoVerNoMapa }) {
+    const pedido = (pedidos.get(container) || 0) + 1;
+    pedidos.set(container, pedido);
+    const pedidoAtual = () => pedidos.get(container);
     if (!sq) {
       container.hidden = true;
       container.innerHTML = "";
@@ -77,10 +82,10 @@ const Card = (() => {
     try {
       c = await dadosCandidato(sq, uf);
     } catch (e) {
-      if (pedido === pedidoAtual) container.innerHTML = `<p class="aviso">Erro ao carregar o candidato.</p>`;
+      if (pedido === pedidoAtual()) container.innerHTML = `<p class="aviso">Erro ao carregar o candidato.</p>`;
       return;
     }
-    if (pedido !== pedidoAtual) return;
+    if (pedido !== pedidoAtual()) return;
     if (!c) {
       container.innerHTML = `<p class="aviso">Candidato não encontrado.</p>`;
       return;
@@ -115,9 +120,13 @@ const Card = (() => {
       </div>
       <dl class="card-dados">${linhas.map(([k, v]) => `<dt>${k}</dt><dd>${Util.esc(v)}</dd>`).join("")}</dl>
       ${redes ? `<div class="card-redes">${redes}</div>` : ""}
-      <div class="legenda-acoes"><button type="button" class="link-botao" data-acao="fechar">Fechar</button></div>`;
-    const fechar = container.querySelector('[data-acao="fechar"]');
-    if (aoFechar) fechar.addEventListener("click", aoFechar);
+      <div class="legenda-acoes">
+        ${aoVerNoMapa && c.ano === meta.ano ? `<button type="button" class="link-botao" data-acao="mapa">Ver no mapa</button>` : ""}
+        ${aoFechar ? `<button type="button" class="link-botao" data-acao="fechar">Fechar</button>` : ""}
+      </div>`;
+    if (aoFechar) container.querySelector('[data-acao="fechar"]').addEventListener("click", aoFechar);
+    const verMapa = container.querySelector('[data-acao="mapa"]');
+    if (verMapa) verMapa.addEventListener("click", () => aoVerNoMapa(c));
   }
 
   return { htmlFoto, instalarFallbackFotos, renderizar };

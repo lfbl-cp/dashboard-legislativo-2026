@@ -173,6 +173,7 @@ etapa_exportar <- function() {
     stop(sprintf("Nominal por partido != soma dos candidatos em %d linha(s)", sum(conf$nominal != conf$nc)))
   }
 
+  mun_sf <- montar_municipios_sf()
   exib <- candidatos$sq_candidato[candidatos$exibir & candidatos$ano == ANO]
   dir.create(file.path(DIR_OUTPUT, "votos"), showWarnings = FALSE, recursive = TRUE)
   dir.create(file.path(DIR_OUTPUT, "candidatos"), showWarnings = FALSE, recursive = TRUE)
@@ -181,6 +182,7 @@ etapa_exportar <- function() {
     v <- montar_votos_escopo(mun_uf, detalhe[uf == uf_i], partidos_v[uf == uf_i],
                              votos_c[uf == uf_i & sq_candidato %in% exib])
     validar_votos_escopo(v, uf_i)
+    v$vizinhos <- vizinhos_queen(mun_sf, mun_uf)
     exportar_json(c(list(uf = uf_i), v), file.path(DIR_OUTPUT, "votos", paste0(uf_i, ".json")))
     cand_uf <- candidatos[candidatos$exibir & candidatos$uf == uf_i, ]
     exportar_json(montar_candidatos_uf(cand_uf), file.path(DIR_OUTPUT, "candidatos", paste0(uf_i, ".json")))
@@ -188,7 +190,7 @@ etapa_exportar <- function() {
   br <- montar_votos_escopo(sort(municipios$code_muni), detalhe, partidos_v)
   validar_votos_escopo(br, "BR")
   exportar_json(c(list(uf = "BR"), br), file.path(DIR_OUTPUT, "votos", "BR.json"))
-  exportar_json(montar_meta(ler("partidos"), ler("federacoes")), file.path(DIR_OUTPUT, "meta.json"))
+  exportar_json(montar_meta(ler("partidos"), ler("federacoes"), municipios), file.path(DIR_OUTPUT, "meta.json"))
 
   tam <- function(p) sum(file.size(list.files(file.path(DIR_OUTPUT, p), full.names = TRUE))) / 1024^2
   cat(sprintf("Somas conferidas contra o detalhe do TSE em %d UFs + BR (partidos = válidos; nominal = soma dos candidatos).\n",
