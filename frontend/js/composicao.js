@@ -1,16 +1,11 @@
 // Aba Composição: hemiciclo da Casa escolhida (Câmara, Senado ou
 // Assembleia de uma UF), agrupado por partido ou federação, com destaque de
 // bancada estadual, destaque de grupo (clique na legenda) e card do eleito
-// (clique na cadeira). Dados: output/composicao.json.
+// (clique na cadeira). Dados: output/composicao.json (cadeiras) + meta
+// (partidos/federações); o card vem de Card (candidatos/{UF}.json).
 const Composicao = (() => {
-  const HOSTS_REDES = {
-    "instagram.com": "Instagram", "facebook.com": "Facebook", "fb.com": "Facebook",
-    "tiktok.com": "TikTok", "twitter.com": "X/Twitter", "x.com": "X/Twitter",
-    "youtube.com": "YouTube", "threads.com": "Threads", "threads.net": "Threads",
-    "kwai.com": "Kwai", "linkedin.com": "LinkedIn", "linktr.ee": "Linktree",
-  };
-
   let dados = null;
+  let meta = null;
   let desenho = null; // retorno de Hemiciclo.desenhar()
   const estado = { casa: "camara", uf: "SP", destaque: "", agrupar: "partido", grupo: null, sq: null };
   let aoMudarEstado = () => {};
@@ -23,9 +18,9 @@ const Composicao = (() => {
 
   // --- grupos (fatias do hemiciclo) ---------------------------------------
   function grupoDaCadeira(c) {
-    const p = dados.partidos[c.sigla];
+    const p = meta.partidos[c.sigla];
     if (estado.agrupar === "federacao" && p.federacao) {
-      const f = dados.federacoes[p.federacao];
+      const f = meta.federacoes[p.federacao];
       return { chave: `F${p.federacao}`, rotulo: f.sigla, nome: f.nome, cor: f.cor, ideologia: f.ideologia };
     }
     return { chave: c.sigla, rotulo: p.rotulo, nome: null, cor: p.cor, ideologia: p.ideologia };
@@ -47,8 +42,8 @@ const Composicao = (() => {
     // depois eleitos de 2026 antes dos de 2022 (Senado), UF e nome.
     grupos.forEach((g) => {
       g.cadeiras.sort((a, b) => {
-        const pa = dados.partidos[a.sigla];
-        const pb = dados.partidos[b.sigla];
+        const pa = meta.partidos[a.sigla];
+        const pb = meta.partidos[b.sigla];
         return (
           ideologiaOrd(pa.ideologia) - ideologiaOrd(pb.ideologia) ||
           a.sigla.localeCompare(b.sigla) ||
@@ -77,11 +72,11 @@ const Composicao = (() => {
     }
     el("hemiciclo-titulo").textContent = titulo;
     el("hemiciclo-nota").textContent = ehSenado
-      ? `Círculo cheio: eleito em ${dados.ano} (mandato até 2035). Vazado: eleito em ${dados.ano_senado_anterior} (mandato até 2031), pelo partido da eleição.`
+      ? `Círculo cheio: eleito em ${meta.ano} (mandato até 2035). Vazado: eleito em ${meta.ano_senado_anterior} (mandato até 2031), pelo partido da eleição.`
       : "";
 
     desenho = Hemiciclo.desenhar(el("hemiciclo-svg"), grupos, {
-      vazada: (c) => ehSenado && c.ano === dados.ano_senado_anterior,
+      vazada: (c) => ehSenado && c.ano === meta.ano_senado_anterior,
     });
     desenho.circulos.forEach((item) => {
       item.el.addEventListener("mouseenter", (ev) => mostrarTooltip(ev, item));
@@ -127,7 +122,7 @@ const Composicao = (() => {
           if (!filtroUf || c.uf === filtroUf) porPartido[c.sigla] = (porPartido[c.sigla] || 0) + 1;
         });
         membros = `<span class="membros">${Object.entries(porPartido)
-          .map(([s, k]) => `${Util.esc(dados.partidos[s].rotulo)} ${k}`)
+          .map(([s, k]) => `${Util.esc(meta.partidos[s].rotulo)} ${k}`)
           .join(" · ")}</span>`;
       }
       html += `<button type="button" class="${classes.join(" ")}" data-grupo="${Util.esc(g.chave)}"
@@ -163,25 +158,12 @@ const Composicao = (() => {
     }
   }
 
-  // --- foto, tooltip e card ---------------------------------------------------
-  function htmlIniciais(iniciais, cor) {
-    return `<div class="foto-iniciais" style="background:${Util.esc(cor)}">${Util.esc(iniciais)}</div>`;
-  }
-
-  // Sem foto (ou se a imagem falhar ao carregar -- ver listener em
-  // iniciar()), mostra as iniciais sobre a cor do partido.
-  function htmlFoto(c, cor) {
-    const ini = Util.iniciais(c.nome);
-    if (!c.foto) return htmlIniciais(ini, cor);
-    return `<img class="foto" src="${Dados.urlFoto(Util.esc(c.sq))}" alt="" loading="lazy"
-      data-iniciais="${Util.esc(ini)}" data-cor="${Util.esc(cor)}">`;
-  }
-
+  // --- tooltip e card ----------------------------------------------------------
   function mostrarTooltip(ev, item) {
     const c = item.cadeira;
     const tip = el("tooltip");
-    tip.innerHTML = `${htmlFoto(c, item.grupo.cor)}<div><b>${Util.esc(c.nome)}</b><br>${Util.esc(
-      dados.partidos[c.sigla].rotulo
+    tip.innerHTML = `${Card.htmlFoto(c, item.grupo.cor)}<div><b>${Util.esc(c.nome)}</b><br>${Util.esc(
+      meta.partidos[c.sigla].rotulo
     )} · ${Util.esc(c.uf)}</div>`;
     tip.hidden = false;
     posicionarTooltip(ev);
@@ -206,62 +188,14 @@ const Composicao = (() => {
     aoMudarEstado();
   }
 
-  function situacao(c) {
-    if (estado.casa === "senado") {
-      return c.ano === dados.ano_senado_anterior
-        ? `Eleito em ${c.ano} · mandato até 2031`
-        : `Eleito em ${c.ano} · mandato até 2035`;
-    }
-    if (c.sit === "QP") return "Eleito por quociente partidário";
-    if (c.sit === "média") return "Eleito por média";
-    return "Eleito";
-  }
-
-  function rotuloRede(url) {
-    const host = url.replace(/^[a-z]+:\/\//i, "").split(/[/?#]/)[0].toLowerCase();
-    const conhecido = Object.keys(HOSTS_REDES).find((h) => host === h || host.endsWith(`.${h}`));
-    return conhecido ? HOSTS_REDES[conhecido] : host.replace(/^www\./, "");
-  }
-
   function renderCard() {
-    const card = el("card-eleito");
     const c = estado.sq && dados.casas[idCasa()].cadeiras.find((x) => x.sq === estado.sq);
-    if (!c) {
-      card.hidden = true;
-      card.innerHTML = "";
-      return;
-    }
-    const p = dados.partidos[c.sigla];
-    const f = p.federacao ? dados.federacoes[p.federacao] : null;
-    const linhas = [
-      ["UF", NOMES_UF[c.uf]],
-      ["Idade", c.idade != null ? `${c.idade} anos` : null],
-      ["Gênero", Util.capitalizar(c.genero)],
-      ["Ocupação", Util.capitalizar(c.ocupacao)],
-      ["Instrução", Util.capitalizar(c.instrucao)],
-      ["Coligação", c.coligacao],
-    ].filter(([, v]) => v);
-    const redes = (c.redes || [])
-      .filter((u) => /^https?:\/\//i.test(u))
-      .map((u) => `<a href="${Util.esc(u)}" target="_blank" rel="noopener noreferrer">${Util.esc(rotuloRede(u))}</a>`)
-      .join("");
-
-    card.innerHTML = `
-      <div class="card-topo">
-        ${htmlFoto(c, p.cor)}
-        <div>
-          <p class="card-nome">${Util.esc(c.nome)}</p>
-          <p class="card-sub">${Util.esc(c.nome_completo)}</p>
-          <span class="card-partido"><span class="swatch" style="background:${p.cor}"></span>${Util.esc(p.rotulo)}</span>
-          ${f ? `<div class="card-sub">${Util.esc(f.nome)}</div>` : ""}
-          <div class="card-sub">${Util.esc(situacao(c))}</div>
-        </div>
-      </div>
-      <dl class="card-dados">${linhas.map(([k, v]) => `<dt>${k}</dt><dd>${Util.esc(v)}</dd>`).join("")}</dl>
-      ${redes ? `<div class="card-redes">${redes}</div>` : ""}
-      <div class="legenda-acoes"><button type="button" class="link-botao" id="btn-fechar-card">Fechar</button></div>`;
-    card.hidden = false;
-    el("btn-fechar-card").addEventListener("click", () => selecionar(estado.sq));
+    Card.renderizar(el("card-eleito"), {
+      sq: c ? c.sq : null,
+      uf: c ? c.uf : null,
+      meta,
+      aoFechar: () => selecionar(estado.sq),
+    });
   }
 
   // --- seletores --------------------------------------------------------------
@@ -309,22 +243,16 @@ const Composicao = (() => {
   }
 
   // inicial: valores lidos da URL (validados aqui; inválido cai no padrão).
-  async function iniciar(inicial, callbackEstado) {
+  // metaCarregado: output/meta.json (carregado uma vez em main.js, comum ao mapa).
+  async function iniciar(inicial, metaCarregado, callbackEstado) {
     aoMudarEstado = callbackEstado || aoMudarEstado;
+    meta = metaCarregado;
     dados = await Dados.carregarJson("output/composicao.json");
     if (["camara", "senado", "assembleia"].includes(inicial.casa)) estado.casa = inicial.casa;
     if (UFS.includes(inicial.uf)) estado.uf = inicial.uf;
     if (UFS.includes(inicial.destaque)) estado.destaque = inicial.destaque;
     if (["partido", "federacao"].includes(inicial.agrupar)) estado.agrupar = inicial.agrupar;
-    el("fonte-ideologia").textContent = `Ordem esquerda → direita: ${dados.fonte_ideologia}.`;
-    // Erro de <img> não borbulha; captura no documento troca qualquer foto
-    // quebrada pelas iniciais.
-    document.addEventListener("error", (ev) => {
-      const img = ev.target;
-      if (img instanceof HTMLImageElement && img.classList.contains("foto")) {
-        img.outerHTML = htmlIniciais(img.dataset.iniciais, img.dataset.cor);
-      }
-    }, true);
+    el("fonte-ideologia").textContent = `Ordem esquerda → direita: ${meta.fonte_ideologia}.`;
     popularSeletores();
     sincronizarControles();
     ligarControles();

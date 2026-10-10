@@ -163,3 +163,35 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
     e hemiciclo, carregado no clique; `composicao.json` deve ficar só com
     o essencial da cadeira (hoje ainda tem tudo -- ajustar na Fase 3/4).
   - Bairros/locais (Fase 5): piloto nas 27 capitais.
+- **Fase 3 (votos por município)** completa -- etapas `geografia` e
+  `exportar`:
+  - Malha **2025** do geobr (5.571 municípios): a de 2022 não tem Boa
+    Esperança do Norte (MT, instalado em 2025), que vota em 2026. O
+    linkador do usuário (5.570) é complementado por
+    `data-raw/ref/linkador_complemento.csv` (TSE 73709 -> IBGE 5101837);
+    o xlsx do usuário não é alterado. Micro/meso de 2020 por join espacial
+    (`st_point_on_surface`, fallback para o polígono mais próximo); nomes
+    de município do linkador (o geobr grafa "Abreu E Lima").
+  - Só a malha municipal é exportada (`output/geo/municipios_{BR,UF}.topojson`,
+    keep 0,05 nacional / 0,15 UF, quantização 1e5): nacional 3,0 MB bruto /
+    0,9 MB gzip (metade do clone). Micro/meso/contorno de UF devem ser
+    fundidos no navegador com `topojson.merge` (Fase 4).
+  - Fontes de voto: `votacao_partido_munzona` (nominal +
+    `QT_TOTAL_VOTOS_LEG_VALIDOS` = total oficial do partido) e
+    `detalhe_votacao_munzona` (aptos, comparecimento, válidos, brancos,
+    nulos). `ler_csv_do_zip()` extrai para temporário e apaga.
+  - Saída: `meta.json` (partidos, federações, fonte), `votos/{UF}.json` e
+    `votos/BR.json` (só partidos/totais) -- municípios por índice, vetores
+    densos para totais/partidos, pares esparsos `[i, votos, ...]` (base 0)
+    para candidatos; candidatos com 0 voto válido (indeferidos) ficam fora
+    do arquivo de votos. `candidatos/{UF}.json` = card (mapa e hemiciclo,
+    via `frontend/js/card.js`). `composicao.json` agora só tem o essencial
+    da cadeira (153 KB bruto / 25 KB gzip). Votos 7,2 MB bruto no total.
+  - Validado: em todo município e cargo, soma dos partidos = válidos
+    oficiais do detalhe; nominal por partido = soma dos candidatos; senador:
+    soma dos candidatos = válidos; 5.571 municípios; geometria de cada UF =
+    municípios do arquivo de votos. 221 testes. Conferido contra o projeto
+    de PE: diferenças pequenas (≤0,1% por partido) explicadas por data de
+    geração (PE usou arquivos de 06/10; aqui, 10/10 12:31) e por votos
+    anulados sub judice (batem exatamente em PCO, PSDB, NOVO).
+- Próximo: Fase 4 (mapa nacional no front-end).

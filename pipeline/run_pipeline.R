@@ -14,6 +14,9 @@
 #   fotos       fotos oficiais dos exibidos -> output/fotos/ (apaga as de
 #               quem deixou de ser exibido)
 #   composicao  cadeiras de todas as Casas -> output/composicao.json
+#   geografia   malha municipal (IBGE/geobr) + micro/meso -> output/geo/
+#   exportar    meta.json, votos/{UF}.json, votos/BR.json, candidatos/{UF}.json
+#               (somas validadas contra o detalhe oficial do TSE)
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -28,7 +31,7 @@ local({
 })
 for (f in sort(list.files("R", pattern = "\\.R$", full.names = TRUE))) source(f, encoding = "UTF-8")
 
-ETAPAS <- c("candidatos", "votos", "fotos", "composicao")
+ETAPAS <- c("candidatos", "votos", "fotos", "composicao", "geografia", "exportar")
 
 args <- commandArgs(trailingOnly = TRUE)
 etapas <- ETAPAS
@@ -128,10 +131,70 @@ etapa_composicao <- function() {
   ler <- function(nome) readRDS(file.path(DIR_PROCESSED, paste0(nome, ".rds")))
   candidatos <- ler("candidatos")
   if (is.null(candidatos$tem_foto)) stop("Rode a etapa fotos antes da composicao.")
-  comp <- montar_composicao(ler("cadeiras"), candidatos, ler("partidos"), ler("federacoes"))
+  comp <- montar_composicao(ler("cadeiras"), candidatos)
   arq <- exportar_json(comp, file.path(DIR_OUTPUT, "composicao.json"))
   cat(sprintf("%s: %d Casas, %d cadeiras, %.0f KB\n", arq, length(comp$casas),
               sum(vapply(comp$casas, `[[`, integer(1), "total")), file.size(arq) / 1024))
+}
+
+# --- geografia ---------------------------------------------------------------------
+etapa_geografia <- function() {
+  mun <- montar_municipios_sf()
+  saveRDS(sf::st_drop_geometry(mun), file.path(DIR_PROCESSED, "municipios.rds"))
+  exportar_topojson(mun, file.path(DIR_OUTPUT, "geo", "municipios_BR.topojson"), KEEP_NACIONAL)
+  for (uf in UFS_BRASIL) {
+    exportar_topojson(mun[mun$uf == uf, ], file.path(DIR_OUTPUT, "geo", sprintf("municipios_%s.topojson", uf)), KEEP_UF)
+  }
+  tam <- file.size(list.files(file.path(DIR_OUTPUT, "geo"), full.names = TRUE))
+  cat(sprintf("%d municípios, %d micro, %d meso | output/geo/: %d arquivos, %.1f MB\n",
+              nrow(mun), length(unique(mun$code_micro)), length(unique(mun$code_meso)),
+              length(tam), sum(tam) / 1024^2))
+}
+
+# --- exportar ----------------------------------------------------------------------
+etapa_exportar <- function() {
+  ler <- function(nome) readRDS(file.path(DIR_PROCESSED, paste0(nome, ".rds")))
+  candidatos <- ler("candidatos")
+  municipios <- ler("municipios")
+  cw <- ler_crosswalk_tse_ibge()
+
+  detalhe <- com_ibge(ler_detalhe(ANO), cw)
+  partidos_v <- com_ibge(ler_votos_partido(ANO), cw)
+  votos_c <- com_ibge(ler("votos_candidato_municipio"), cw)
+
+  # Coerência entre os arquivos do TSE: votos nominais por partido x
+  # município (arquivo por partido) = soma dos candidatos (arquivo por
+  # candidato).
+  sigla_cand <- data.table::data.table(sq_candidato = candidatos$sq_candidato, sigla = candidatos$sigla)
+  nom_c <- merge(votos_c, sigla_cand, by = "sq_candidato")[, .(nc = sum(votos)), by = .(code_muni, cargo, sigla)]
+  conf <- merge(partidos_v[, .(code_muni, cargo, sigla, nominal)], nom_c, by = c("code_muni", "cargo", "sigla"), all = TRUE)
+  conf[is.na(nominal), nominal := 0L][is.na(nc), nc := 0L]
+  if (any(conf$nominal != conf$nc)) {
+    stop(sprintf("Nominal por partido != soma dos candidatos em %d linha(s)", sum(conf$nominal != conf$nc)))
+  }
+
+  exib <- candidatos$sq_candidato[candidatos$exibir & candidatos$ano == ANO]
+  dir.create(file.path(DIR_OUTPUT, "votos"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(file.path(DIR_OUTPUT, "candidatos"), showWarnings = FALSE, recursive = TRUE)
+  for (uf_i in UFS_BRASIL) {
+    mun_uf <- sort(municipios$code_muni[municipios$uf == uf_i])
+    v <- montar_votos_escopo(mun_uf, detalhe[uf == uf_i], partidos_v[uf == uf_i],
+                             votos_c[uf == uf_i & sq_candidato %in% exib])
+    validar_votos_escopo(v, uf_i)
+    exportar_json(c(list(uf = uf_i), v), file.path(DIR_OUTPUT, "votos", paste0(uf_i, ".json")))
+    cand_uf <- candidatos[candidatos$exibir & candidatos$uf == uf_i, ]
+    exportar_json(montar_candidatos_uf(cand_uf), file.path(DIR_OUTPUT, "candidatos", paste0(uf_i, ".json")))
+  }
+  br <- montar_votos_escopo(sort(municipios$code_muni), detalhe, partidos_v)
+  validar_votos_escopo(br, "BR")
+  exportar_json(c(list(uf = "BR"), br), file.path(DIR_OUTPUT, "votos", "BR.json"))
+  exportar_json(montar_meta(ler("partidos"), ler("federacoes")), file.path(DIR_OUTPUT, "meta.json"))
+
+  tam <- function(p) sum(file.size(list.files(file.path(DIR_OUTPUT, p), full.names = TRUE))) / 1024^2
+  cat(sprintf("Somas conferidas contra o detalhe do TSE em %d UFs + BR (partidos = válidos; nominal = soma dos candidatos).\n",
+              length(UFS_BRASIL)))
+  cat(sprintf("output/votos/: %.1f MB (BR.json %.1f MB) | output/candidatos/: %.1f MB\n",
+              tam("votos"), file.size(file.path(DIR_OUTPUT, "votos", "BR.json")) / 1024^2, tam("candidatos")))
 }
 
 for (e in etapas) {

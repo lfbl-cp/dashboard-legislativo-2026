@@ -37,9 +37,11 @@
   L.DomEvent.disableScrollPropagation(painel);
 
   mostrarAba(abaAtual);
+  Card.instalarFallbackFotos();
   status.textContent = "Carregando composição...";
   try {
-    await Composicao.iniciar(inicial, gravarUrl);
+    const meta = await Dados.carregarJson("output/meta.json");
+    await Composicao.iniciar(inicial, meta, gravarUrl);
     status.textContent = "";
   } catch (e) {
     status.textContent = `Erro ao carregar dados: ${e.message}`;

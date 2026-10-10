@@ -17,12 +17,7 @@ COLUNAS_VOTOS <- c("NR_TURNO", "SG_UF", "CD_MUNICIPIO", "CD_CARGO", "SQ_CANDIDAT
 # Votos nominais válidos por candidato x município de uma UF (zonas somadas),
 # só cargos do painel e 1º turno.
 agregar_votos_uf <- function(zip, ano, uf) {
-  csv <- sprintf("votacao_candidato_munzona_%d_%s.csv", ano, uf)
-  tmp <- tempfile("munzona_")
-  dir.create(tmp)
-  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
-  utils::unzip(zip, files = csv, exdir = tmp)
-  x <- ler_csv_tse(file.path(tmp, csv), select = COLUNAS_VOTOS)
+  x <- ler_csv_do_zip(zip, sprintf("votacao_candidato_munzona_%d_%s.csv", ano, uf), COLUNAS_VOTOS)
   x <- x[NR_TURNO == TURNO & CD_CARGO %in% CARGOS$cd_cargo]
   x[, .(votos = sum(QT_VOTOS_NOMINAIS_VALIDOS, na.rm = TRUE)),
     by = .(uf = SG_UF, cd_municipio_tse = CD_MUNICIPIO, cd_cargo = CD_CARGO,

@@ -54,6 +54,17 @@ extrair_do_zip <- function(zip, padrao) {
   file.path(pasta, alvo)
 }
 
+# Lê um CSV de dentro do ZIP sem deixá-lo descompactado em disco: extrai para
+# um temporário, lê só as colunas pedidas e apaga. (read.csv/fread direto de
+# unz() falha com Latin-1 -- ver CLAUDE.md do clone.)
+ler_csv_do_zip <- function(zip, csv, select = NULL) {
+  tmp <- tempfile("csv_")
+  dir.create(tmp)
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+  utils::unzip(zip, files = csv, exdir = tmp)
+  ler_csv_tse(file.path(tmp, csv), select = select)
+}
+
 # CSVs de candidatos de um ano: um por UF (os 27 estaduais). O _BR
 # (Presidente) e o _BRASIL (concatenação redundante) ficam de fora.
 obter_csvs_candidatos <- function(ano) {

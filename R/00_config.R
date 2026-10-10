@@ -51,6 +51,8 @@ url_consulta_cand <- function(ano) sprintf("%s/odsele/consulta_cand/consulta_can
 url_rede_social   <- function(ano) sprintf("%s/odsele/consulta_cand/rede_social_candidato_%d.zip", URL_TSE, ano)
 url_fotos         <- function(ano, uf) sprintf("%s/eleicoes/eleicoes%d/fotos/foto_cand%d_%s_div.zip", URL_TSE, ano, ano, uf)
 url_senado_legislatura <- function(n) sprintf("https://legis.senado.leg.br/dadosabertos/senador/lista/legislatura/%d.json", n)
+url_partido_munzona <- function(ano) sprintf("%s/odsele/votacao_partido_munzona/votacao_partido_munzona_%d.zip", URL_TSE, ano)
+url_detalhe_munzona <- function(ano) sprintf("%s/odsele/detalhe_votacao_munzona/detalhe_votacao_munzona_%d.zip", URL_TSE, ano)
 url_munzona       <- function(ano) sprintf("%s/odsele/votacao_candidato_munzona/votacao_candidato_munzona_%d.zip", URL_TSE, ano)
 
 # O CDN do TSE devolve 403 sem User-Agent de navegador.
