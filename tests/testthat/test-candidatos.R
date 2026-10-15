@@ -77,9 +77,24 @@ test_that("suplência segue os votos: nenhum suplente supera o eleito menos vota
   expect_equal(as.vector(primeiro$votos_total),
                as.vector(max_sup[paste(primeiro$uf, primeiro$cargo, primeiro$lista)]))
 
-  # exibidos: eleitos + até N_SUPLENTES por lista
-  expect_true(all(table(ch_sup[sup$exibir]) <= N_SUPLENTES))
+  # exibidos: eleitos + até N_SUPLENTES por lista; suplente além disso só se
+  # estiver entre os mais votados da UF ou da capital (ranking)
+  vm <- readRDS(file.path(DIR_PROCESSED, "votos_candidato_municipio.rds"))
+  cw <- ler_crosswalk_tse_ibge()
+  top <- top_votados(cand, vm, N_RANKING, cw[cw$code_muni %in% CAPITAIS, c("uf", "cd_municipio_tse")])
+  extra <- sup[sup$exibir & sup$ordem_suplente > N_SUPLENTES, ]
+  expect_true(all(extra$sq_candidato %in% top))
   expect_true(all(d$exibir[d$situacao %in% "eleito"]))
+  expect_true(all(cand$exibir[cand$sq_candidato %in% top]))
+})
+
+test_that("os 10 mais votados de cada UF e cargo são exibidos", {
+  arq <- file.path(DIR_PROCESSED, "candidatos.rds")
+  skip_if_not(file.exists(arq))
+  cand <- data.table::as.data.table(readRDS(arq))[ano == ANO & votos_total > 0]
+  skip_if(is.null(cand$ordem_suplente), "rode a etapa votos antes")
+  top <- cand[order(-votos_total), head(.SD, N_RANKING), by = .(uf, cargo)]
+  expect_true(all(top$exibir))
 })
 
 test_that("validar_cadeiras acusa Câmara incompleta", {

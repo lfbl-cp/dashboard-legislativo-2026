@@ -136,12 +136,15 @@ const PainelMapa = (() => {
     });
   }
 
-  // Rótulo do candidato no seletor: nome, partido e situação.
+  function rotuloSituacao(i) {
+    return i.situacao === "eleito" ? "eleito" : i.situacao === "suplente" ? `${i.ordem_suplente}º sup.` : "não eleito";
+  }
+
+  // Rótulo no seletor de alvo (a lista vem do mais ao menos votado no
+  // escopo): candidato com partido, situação e votos; partido com o %.
   function rotuloAlvo(e) {
     if (!e.info) return `${e.rotulo} — ${Util.pctBr(e.fracEscopo)}`;
-    const i = e.info;
-    const sit = i.situacao === "eleito" ? "eleito" : i.situacao === "suplente" ? `${i.ordem_suplente}º sup.` : "não eleito";
-    return `${e.rotulo} · ${sit}`;
+    return `${e.rotulo} · ${rotuloSituacao(e.info)} · ${Math.round(e.total).toLocaleString("pt-BR")}`;
   }
 
   // --- desenho ----------------------------------------------------------------------
@@ -217,7 +220,8 @@ const PainelMapa = (() => {
       const classeUn = Analise.lisaSubdivisoes(escopo, uns, fr, tot.validos);
       estiloUnidade = (u) =>
         classeUn[u] ? { fillColor: Cores.corLisa(classeUn[u], tema), fillOpacity: Cores.opacidadeLisa(classeUn[u], tema) } : SEM_DADO;
-      infoUnidade = (u) => `<div class="popup-nota">Cluster: <b>${Util.esc(classeUn[u] || "sem local de votação")}</b></div>`;
+      infoUnidade = (u) =>
+        `<div class="popup-nota">Cluster: <b>${Util.esc(classeUn[u] ? LISA.nome(classeUn[u]) : "sem local de votação")}</b></div>`;
       legenda = legendaLisa(classeUn.filter(Boolean), tema);
     } else {
       // LISA: % de válidos por município, na ordem do arquivo de votos (a
@@ -230,7 +234,7 @@ const PainelMapa = (() => {
         if (uns.unidadeDe[i] >= 0) classeUn[uns.unidadeDe[i]] = cl;
       });
       estiloUnidade = (u) => ({ fillColor: Cores.corLisa(classeUn[u], tema), fillOpacity: Cores.opacidadeLisa(classeUn[u], tema) });
-      infoUnidade = (u) => `<div class="popup-nota">Cluster: <b>${Util.esc(classeUn[u] || "—")}</b></div>`;
+      infoUnidade = (u) => `<div class="popup-nota">Cluster: <b>${Util.esc(classeUn[u] ? LISA.nome(classeUn[u]) : "—")}</b></div>`;
       legenda = legendaLisa(classes, tema);
     }
 
@@ -244,6 +248,9 @@ const PainelMapa = (() => {
       return htmlPopup(f, u, ents, votosUn, tot.validos[u], alvo, escopo) + infoUnidade(u);
     };
 
+    // Painel da direita antes do mapa: o enquadramento desconta a largura dele.
+    renderDireito(escopo, ents, alvo, tot.escopo.validos);
+
     const contorno = estado.unidade === "uf" ? null : Analise.contornoUfs(escopo, meta, estado.unidade);
     Mapa.renderizar({
       features: uns.features,
@@ -256,7 +263,6 @@ const PainelMapa = (() => {
 
     renderResumo(tot.escopo);
     el("legenda-mapa").innerHTML = legenda + (escopo.capital ? notaCapital(escopo, uns) : "");
-    renderCard(alvo);
     status.textContent = "";
   }
 
@@ -321,11 +327,13 @@ const PainelMapa = (() => {
       cont[c] = (cont[c] || 0) + 1;
     });
     const itens = LISA.NIVEIS.map((n) => `<div class="item"><span class="swatch" style="background:${Cores.corLisa(n, tema)}"></span>
-      <span>${n}</span><span class="n">${cont[n] || 0}</span></div>`).join("");
+      <span>${LISA.nome(n)}</span><span class="n">${cont[n] || 0}</span></div>`).join("");
     const um = rotuloUnidade(estado.unidade).toLowerCase();
     const varios = rotuloUnidade(estado.unidade, true);
-    return `${itens}<div class="legenda-nota">Moran local sobre o % dos válidos por ${Util.esc(um)} (vizinhança queen,
-      p &lt; 0,05). Alto-Alto: reduto cercado de ${Util.esc(varios)} também fortes; Baixo-Baixo: o inverso.</div>`;
+    return `${itens}<div class="legenda-nota">Tipologia de Terron (2009) sobre o Moran local do % dos válidos por
+      ${Util.esc(um)} (vizinhança queen, p &lt; 0,05). Território forte: votação alta cercada de ${Util.esc(varios)}
+      também altos; território fraco: baixa cercada de baixos; forte isolado: alta cercada de baixos; fraco isolado:
+      baixa cercada de altos.</div>`;
   }
 
   // Fonte e cobertura das visões da capital.
@@ -357,13 +365,105 @@ const PainelMapa = (() => {
       <span>Nulos <b>${Util.pctBr(votos ? t.nulos / votos : 0)}</b></span>`;
   }
 
-  function renderCard(alvo) {
+  // --- painel da direita --------------------------------------------------------
+  // Contínuo/LISA de um candidato: card dele. Quem lidera: ranking dos mais
+  // votados no escopo (senador: eleitos primeiro). Contínuo/LISA de partido
+  // ou federação: ranking dos candidatos dele. Clicar num nome abre o mapa
+  // contínuo do candidato.
+  const N_RANKING = 10;
+
+  function renderDireito(escopo, ents, alvo, validosEscopo) {
+    const painel = el("painel-direito");
     const ehCand = alvo && alvo.info;
-    Card.renderizar(el("card-mapa"), {
-      sq: ehCand ? alvo.chave : null,
-      uf: estado.uf,
-      meta,
+    Card.renderizar(el("card-mapa"), { sq: ehCand ? alvo.chave : null, uf: estado.uf, meta });
+    if (ehCand) {
+      el("direito-titulo").innerHTML = "";
+      el("ranking-mapa").innerHTML = "";
+      painel.hidden = false;
+      return;
+    }
+    const membros = alvo ? new Set(alvo.membros) : null;
+    const linhas = (escopo.uf === "BR" ? linhasBrasil(escopo, membros) : linhasEscopo(escopo, membros, validosEscopo))
+      .map((l, k) => ({ ...l, pos: k + 1 })); // posição no escopo (eleitos e demais seguem a mesma)
+    const onde = escopo.uf === "BR" ? "Brasil" : escopo.capital ? escopo.votos.nome : NOMES_UF[escopo.uf];
+    const deQuem = alvo ? ` · ${Util.esc(alvo.rotulo)}` : "";
+    el("direito-titulo").innerHTML = `Mais votados${deQuem}
+      <span class="sub">${Util.esc(CARGOS[estado.cargo])} · ${Util.esc(onde)}</span>`;
+    const lista = (itens) => `<ol class="ranking">${itens.map(htmlLinhaRanking).join("")}</ol>`;
+    let html;
+    if (linhas.length === 0) {
+      html = `<p class="legenda-nota">Nenhum candidato ${alvo ? "deste partido " : ""}entre os mais votados.</p>`;
+    } else if (estado.cargo === "senador" && !alvo) {
+      const eleitos = linhas.filter((l) => l.situacao === "eleito");
+      const demais = linhas.filter((l) => l.situacao !== "eleito").slice(0, N_RANKING);
+      html = `<div class="ranking-secao">Eleitos</div>${lista(eleitos)}${
+        demais.length ? `<div class="ranking-secao">Demais candidatos</div>${lista(demais)}` : ""
+      }`;
+    } else {
+      html = lista(linhas.slice(0, N_RANKING));
+    }
+    const nota = escopo.uf === "BR"
+      ? `<p class="legenda-nota">% sobre os votos válidos da UF de cada candidato.</p>`
+      : "";
+    el("ranking-mapa").innerHTML = html + nota;
+    el("ranking-mapa").querySelectorAll("li[data-sq]").forEach((li) => {
+      const abrir = () => mostrarCandidato({ cargo: estado.cargo, uf: li.dataset.uf, sq: li.dataset.sq });
+      li.addEventListener("click", abrir);
+      li.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          abrir();
+        }
+      });
     });
+    painel.hidden = false;
+  }
+
+  // Candidatos do escopo (UF ou capital), do mais ao menos votado ali. O
+  // pipeline exporta os 10 mais votados de cada UF e de cada capital, então o
+  // topo do ranking está completo mesmo entre não eleitos.
+  function linhasEscopo(escopo, membros, validosEscopo) {
+    return Analise.entidades(escopo, estado.cargo, "candidato", meta)
+      .filter((e) => !membros || membros.has(e.sigla))
+      .map((e) => ({
+        sq: e.chave, uf: escopo.uf, nome: e.nome, sigla: e.sigla, foto: e.info.foto,
+        situacao: e.info.situacao, ordem_suplente: e.info.ordem_suplente,
+        votos: e.total, pct: validosEscopo > 0 ? e.total / validosEscopo : 0,
+      }));
+  }
+
+  // Visão Brasil: ranking nacional pronto no BR.json (sem candidatos por UF).
+  function linhasBrasil(escopo, membros) {
+    return ((escopo.votos.ranking || {})[estado.cargo] || [])
+      .filter((r) => !membros || membros.has(r.sigla))
+      .map((r) => ({ ...r, pct: r.pct_uf }));
+  }
+
+  function htmlLinhaRanking(l) {
+    const p = meta.partidos[l.sigla] || { cor: "#999999", rotulo: l.sigla };
+    const sit = rotuloSituacao(l);
+    const ufTxt = estado.uf === "BR" ? ` · ${Util.esc(l.uf)}` : "";
+    return `<li data-sq="${Util.esc(l.sq)}" data-uf="${Util.esc(l.uf)}" tabindex="0"
+        class="${l.situacao === "eleito" ? "rk-eleito" : ""}" title="Ver no mapa">
+      <span class="rk-pos">${l.pos}</span>
+      ${Card.htmlFoto({ sq: l.sq, nome: l.nome, foto: l.foto }, p.cor)}
+      <span><span class="rk-nome">${Util.esc(l.nome)}</span>
+        <span class="rk-sub"><span class="swatch" style="background:${Util.esc(p.cor)}"></span>${Util.esc(p.rotulo)}${ufTxt} · ${sit}</span></span>
+      <span class="rk-num"><b>${Util.pctBr(l.pct)}</b><span>${Math.round(l.votos).toLocaleString("pt-BR")}</span></span>
+    </li>`;
+  }
+
+  // No celular (painel principal como faixa inferior) o painel da direita
+  // entra no fim do painel principal; no desktop flutua à direita.
+  function posicionarDireito() {
+    const painel = el("painel-direito");
+    const celular = window.matchMedia("(max-width: 700px)");
+    const posicionar = () => {
+      if (celular.matches) el("painel-mapa").appendChild(painel);
+      else document.body.appendChild(painel);
+    };
+    celular.addEventListener("change", posicionar);
+    posicionar();
   }
 
   // --- API ------------------------------------------------------------------------
@@ -375,13 +475,16 @@ const PainelMapa = (() => {
       if (inicial[k]) estado[k] = inicial[k];
     });
     ligarControles();
+    posicionarDireito();
     Mapa.definirAoRedesenhar(() => atualizar({ manterVista: true }));
     return atualizar();
   }
 
-  // Vindo do hemiciclo: mapa contínuo do candidato, na UF dele.
+  // Vindo do hemiciclo ou do ranking: mapa contínuo do candidato, na UF
+  // dele. Se já estava em bairros/locais da capital dessa UF, continua lá.
   function mostrarCandidato({ cargo, uf, sq }) {
-    Object.assign(estado, { cargo, uf, unidade: "municipio", agrupar: "candidato", modo: "continuo", alvo: sq });
+    const unidade = uf === estado.uf && DA_CAPITAL.has(estado.unidade) ? estado.unidade : "municipio";
+    Object.assign(estado, { cargo, uf, unidade, agrupar: "candidato", modo: "continuo", alvo: sq });
     return atualizar();
   }
 

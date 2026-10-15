@@ -149,6 +149,28 @@ montar_candidatos_uf <- function(cand) {
   stats::setNames(lista, cand$sq_candidato)
 }
 
+# Ranking da visão "Brasil" (que não carrega candidatos por UF): por cargo,
+# os N_RANKING deputados mais votados do país e os senadores eleitos em
+# ANO, com o % sobre os válidos da UF de cada um.
+montar_ranking_br <- function(candidatos, detalhe) {
+  val_uf <- detalhe[, .(validos = sum(validos)), by = .(uf, cargo)]
+  c26 <- data.table::as.data.table(candidatos)[ano == ANO & votos_total > 0]
+  linhas <- function(x) {
+    x <- x[order(-votos_total)]
+    v <- val_uf$validos[match(paste(x$uf, x$cargo), paste(val_uf$uf, val_uf$cargo))]
+    lapply(seq_len(nrow(x)), function(i) {
+      list(sq = x$sq_candidato[i], nome = x$nome[i], sigla = x$sigla[i], uf = x$uf[i],
+           votos = x$votos_total[i], pct_uf = round(x$votos_total[i] / v[i], 5),
+           situacao = x$situacao[i], ordem_suplente = x$ordem_suplente[i], foto = isTRUE(x$tem_foto[i]))
+    })
+  }
+  list(
+    federal = linhas(c26[cargo == "federal"][order(-votos_total)][seq_len(N_RANKING)]),
+    estadual = linhas(c26[cargo == "estadual"][order(-votos_total)][seq_len(N_RANKING)]),
+    senador = linhas(c26[cargo == "senador" & situacao %in% "eleito"])
+  )
+}
+
 # Vizinhança queen dos municípios de uma UF (para o LISA no navegador),
 # calculada na geometria completa (não na simplificada do TopoJSON), na ordem
 # de `municipios`; índices base 0. Município sem vizinho (ilha, ex. Fernando

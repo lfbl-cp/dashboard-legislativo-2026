@@ -61,7 +61,7 @@
     </label>
     <div id="resumo-mapa"></div>
     <div id="legenda-mapa"></div>
-    <div id="card-mapa" class="card" hidden></div>
+
   </section>
 
   <section id="painel-composicao" data-aba-painel="composicao">
@@ -94,6 +94,14 @@
   </section>
 
   <p id="status"></p>
+</aside>
+
+<!-- Painel da direita (aba Mapa): card do candidato escolhido ou ranking dos
+     mais votados. No celular é movido para dentro do painel principal. -->
+<aside id="painel-direito" hidden>
+  <div id="direito-titulo"></div>
+  <div id="card-mapa" class="card" hidden></div>
+  <div id="ranking-mapa"></div>
 </aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>

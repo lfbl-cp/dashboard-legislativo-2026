@@ -111,12 +111,18 @@ const Mapa = (() => {
     if (limites.isValid()) mapa.fitBounds(limites, margensSemPainel());
   }
 
-  // O painel flutua sobre o mapa: à esquerda no desktop, embaixo no celular.
-  // A área enquadrada desconta o pedaço que ele cobre.
+  // Os painéis flutuam sobre o mapa: no desktop, o principal à esquerda e o
+  // do candidato/ranking à direita; no celular, o principal embaixo (com o
+  // da direita dentro dele). A área enquadrada desconta o que eles cobrem.
   function margensSemPainel() {
     const p = document.getElementById("controles").getBoundingClientRect();
     const m = 16;
-    if (p.right < window.innerWidth / 2) return { paddingTopLeft: [p.right + m, m], paddingBottomRight: [m, m] };
+    if (p.right < window.innerWidth / 2) {
+      const d = document.getElementById("painel-direito");
+      const flutuaDireita = d && !d.hidden && d.parentElement === document.body;
+      const direita = flutuaDireita ? window.innerWidth - d.getBoundingClientRect().left + m : m;
+      return { paddingTopLeft: [p.right + m, m], paddingBottomRight: [direita, m] };
+    }
     return { paddingTopLeft: [m, m], paddingBottomRight: [m, window.innerHeight - p.top + m] };
   }
 

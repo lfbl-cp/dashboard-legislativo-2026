@@ -113,9 +113,16 @@ cenario <- function(nome, hash, esperado = list(), w = 1440, h = 900, mobile = F
     card = js("[...document.querySelectorAll('.card')].some(c => !c.hidden && c.querySelector('.card-nome'))"),
     popup = js("!!document.querySelector('.leaflet-popup')"),
     agrupar = js("document.querySelector('#seg-agrupar-mapa button[aria-pressed=\"true\"]').dataset.valor"),
-    modo = js("document.getElementById('sel-modo').value")
+    modo = js("document.getElementById('sel-modo').value"),
+    ranking = js("document.querySelectorAll('#painel-direito:not([hidden]) #ranking-mapa li').length"),
+    eleitos = js("document.querySelectorAll('#ranking-mapa li.rk-eleito').length"),
+    # votos do ranking e do seletor de alvo (candidatos) do maior para o menor
+    ordenado = js("(() => { const v = [...document.querySelectorAll('#ranking-mapa ol')].map((ol) => [...ol.querySelectorAll('.rk-num span')].map((s) => +s.textContent.replace(/[^0-9]/g, ''))); return v.every((a) => a.every((x, i) => i === 0 || a[i - 1] >= x)); })()"),
+    alvo_ordenado = js("(() => { const o = [...document.querySelectorAll('#sel-alvo option')].map((x) => x.textContent); const n = o.map((t) => +((t.match(/· ([0-9.]+)$/) || [0, '-1'])[1].replace(/[^0-9-]/g, ''))); return n.every((x, i) => i === 0 || x < 0 || n[i - 1] >= x); })()")
   )
   b$screenshot(file.path(saida, paste0(nome, ".png")), show = FALSE)
+  if (identical(obtido$aba, "mapa") && !isTRUE(obtido$ordenado)) problemas <<- c(problemas, "ranking fora de ordem")
+  if (identical(obtido$aba, "mapa") && !isTRUE(obtido$alvo_ordenado)) problemas <<- c(problemas, "seletor de alvo fora de ordem")
   difere <- names(esperado)[!vapply(names(esperado), function(k) identical(obtido[[k]], esperado[[k]]), logical(1))]
   if (length(difere) > 0) {
     problemas <<- c(problemas, sprintf("%s: obtido %s, esperado %s", difere,
@@ -156,7 +163,7 @@ cenario("hemiciclo_ver_no_mapa", "aba=composicao&casa=assembleia&uf=PE",
 
 # --- mapa -----------------------------------------------------------------------------
 cenario("mapa_padrao_br", "", list(aba = "mapa", unidades = 5571L, agrupar = "partido", modo = "lider"))
-cenario("mapa_br_popup", "aba=mapa&cargo=federal&uf=BR", list(popup = TRUE), acao = function() clicar_mapa(886, 430))
+cenario("mapa_br_popup", "aba=mapa&cargo=federal&uf=BR", list(popup = TRUE), acao = function() clicar_mapa(700, 330))
 cenario("mapa_br_federacao_meso", "aba=mapa&cargo=federal&uf=BR&unidade=mesorregiao&agrupar=federacao",
         list(unidades = 137L, agrupar = "federacao"))
 cenario("mapa_br_uf", "aba=mapa&cargo=estadual&uf=BR&unidade=uf", list(unidades = 27L))
@@ -201,6 +208,23 @@ cenario("cap_ac_locais", "aba=mapa&cargo=federal&uf=AC&unidade=local&modo=lisa",
 cenario("cap_br_local_invalido", "aba=mapa&cargo=federal&uf=BR&unidade=local", list(unidades = 5571L))
 cenario("cap_rj_bairros_celular", "aba=mapa&cargo=federal&uf=RJ&unidade=subdivisao&agrupar=federacao",
         list(unidades = n_sub("RJ")), w = 390, h = 844, mobile = TRUE)
+
+# --- painel da direita: ranking dos mais votados / card ---------------------------------
+# MA federal: o 6º mais votado (Duarte Jr) não foi eleito nem é suplente --
+# entra pelo ranking (10 mais votados da UF exportados).
+cenario("rank_ma_federal", "aba=mapa&cargo=federal&uf=MA", list(ranking = 10L, eleitos = 9L))
+cenario("rank_pe_senado", "aba=mapa&cargo=senador&uf=PE", list(eleitos = 2L))
+cenario("rank_br_senado", "aba=mapa&cargo=senador&uf=BR", list(ranking = 54L, eleitos = 54L))
+cenario("rank_br_federal", "aba=mapa&cargo=federal&uf=BR", list(ranking = 10L))
+cenario("rank_sp_partido_PL", "aba=mapa&cargo=federal&uf=SP&modo=continuo&alvo=PL", list(ranking = 10L, card = FALSE))
+cenario("rank_capital_pe_locais", "aba=mapa&cargo=estadual&uf=PE&unidade=local", list(ranking = 10L))
+cenario("rank_clique_abre_candidato", "aba=mapa&cargo=federal&uf=AL",
+        list(agrupar = "candidato", modo = "continuo", card = TRUE, ranking = 0L),
+        acao = function() {
+          js("document.querySelector('#ranking-mapa li').click()")
+          Sys.sleep(1.5)
+        })
+cenario("rank_celular", "aba=mapa&cargo=senador&uf=BA", list(eleitos = 2L), w = 390, h = 844, mobile = TRUE)
 
 # --- LISA: navegador x spdep -----------------------------------------------------------
 lisa_spdep <- function(x, viz) {

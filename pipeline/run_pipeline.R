@@ -98,7 +98,9 @@ etapa_votos <- function() {
   sem_voto <- setdiff(eleitos, votos$sq_candidato)
   if (length(sem_voto) > 0) stop("Eleito(s) sem nenhuma linha no munzona: ", paste(sem_voto, collapse = ", "))
 
-  candidatos <- definir_exibidos(candidatos, votos)
+  cw <- ler_crosswalk_tse_ibge()
+  capitais_tse <- cw[cw$code_muni %in% CAPITAIS, c("uf", "cd_municipio_tse")]
+  candidatos <- definir_exibidos(candidatos, votos, capitais_tse = capitais_tse)
   redes <- montar_redes(ANO, candidatos$sq_candidato[candidatos$exibir])
   candidatos$redes <- unname(redes[candidatos$sq_candidato])
   saveRDS(candidatos, file.path(DIR_PROCESSED, "candidatos.rds"))
@@ -193,6 +195,8 @@ etapa_exportar <- function() {
   }
   br <- montar_votos_escopo(sort(municipios$code_muni), detalhe, partidos_v)
   validar_votos_escopo(br, "BR")
+  br$ranking <- montar_ranking_br(candidatos, detalhe)
+  if (length(br$ranking$senador) != 2 * length(UFS_BRASIL)) stop("Ranking BR: senadores eleitos != 54")
   exportar_json(c(list(uf = "BR"), br), file.path(DIR_OUTPUT, "votos", "BR.json"))
   exportar_json(montar_meta(ler("partidos"), ler("federacoes"), municipios), file.path(DIR_OUTPUT, "meta.json"))
 

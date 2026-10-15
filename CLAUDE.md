@@ -264,4 +264,30 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
     embaixo; sem LISA). Contorno: união das subdivisões / limite municipal.
   - Verificado: 790 testes; QA com 38 cenários, incluindo LISA das
     subdivisões = spdep (PE, SP, RJ, DF).
-- Próximo: Fase 6 (publicação).
+- **Ajustes pedidos pelo usuário (15/10)**:
+  - **Painel da direita** (`#painel-direito`, flutuante; no celular é
+    movido para dentro do painel principal): contínuo/LISA de candidato =
+    card; "quem lidera" = ranking dos 10 mais votados do escopo (senador:
+    "Eleitos" + demais); contínuo/LISA de partido/federação = ranking dos
+    candidatos dele. Clicar num nome abre o contínuo do candidato
+    (`mostrarCandidato`, mantém bairros/locais se já estava na capital).
+    O enquadramento do mapa desconta os dois painéis.
+  - **Exibidos ampliados** (`top_votados()` em `R/06_votos.R`,
+    `N_RANKING = 10`): além de eleitos + 3 suplentes por lista, os 10 mais
+    votados de cada UF x cargo e de cada capital x cargo -- havia não
+    eleitos sem suplência no top 10 (ex. Duarte Jr, MA, 6º com 141 mil),
+    e o ranking ficaria errado. Exibidos 3.211 -> 3.243.
+  - Visão Brasil: `votos/BR.json` traz `ranking` (10 deputados mais
+    votados do país por cargo e os 54 senadores eleitos, com % sobre os
+    válidos da UF).
+  - **LISA com a tipologia de Terron (2009)** nos rótulos (`LISA.nome()`):
+    Alto-Alto = território forte, Alto-Baixo = forte isolado, Baixo-Baixo =
+    território fraco, Baixo-Alto = fraco isolado. Os códigos Alto/Baixo
+    continuam internos (cores, QA contra o spdep).
+  - Seletor de alvo: do mais ao menos votado no escopo, com os votos no
+    rótulo. Corrigido cache de entidades que usava `escopo.uf` (misturava
+    a UF e a capital dela).
+  - QA: 46 verificações, incluindo ranking ordenado e seletor ordenado em
+    todos os cenários do mapa.
+- Próximo: Fase 6 (publicação: GitHub Pages em
+  `lfbl-cp/dashboard-legislativo-2026`, ativar em Settings -> Pages).

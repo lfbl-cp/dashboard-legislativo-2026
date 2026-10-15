@@ -14,6 +14,7 @@
 
   function mostrarAba(aba) {
     abaAtual = aba;
+    document.body.dataset.aba = aba;
     document.querySelectorAll(".abas button").forEach((b) => {
       b.setAttribute("aria-selected", String(b.dataset.aba === aba));
     });

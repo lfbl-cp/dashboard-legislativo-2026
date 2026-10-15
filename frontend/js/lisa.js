@@ -8,6 +8,16 @@
 const LISA = (() => {
   const NIVEIS = ["Alto-Alto", "Baixo-Baixo", "Alto-Baixo", "Baixo-Alto", "Não significante"];
   const NS = "Não significante";
+  // Nomes exibidos: tipologia de territórios eleitorais de Terron (2009). Os
+  // códigos acima continuam internos (cores, QA contra o spdep).
+  const NOMES = {
+    "Alto-Alto": "Território forte",
+    "Alto-Baixo": "Forte isolado",
+    "Baixo-Baixo": "Território fraco",
+    "Baixo-Alto": "Fraco isolado",
+    "Não significante": "Não significante",
+  };
+  const nome = (nivel) => NOMES[nivel] || nivel;
 
   // 1 - Phi(x) via erfc (aproximação de Numerical Recipes, erro relativo
   // < 1,2e-7 -- folga enorme para o corte p < 0,05).
@@ -62,5 +72,5 @@ const LISA = (() => {
     return out;
   }
 
-  return { NIVEIS, NS, classificar };
+  return { NIVEIS, NS, NOMES, nome, classificar };
 })();

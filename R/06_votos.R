@@ -10,6 +10,9 @@
 # =============================================================================
 
 N_SUPLENTES <- 3
+# Mais votados por UF x cargo e por capital x cargo que entram nos exibidos
+# (ranking do painel), mesmo sem eleição ou suplência.
+N_RANKING <- 10
 
 COLUNAS_VOTOS <- c("NR_TURNO", "SG_UF", "CD_MUNICIPIO", "CD_CARGO", "SQ_CANDIDATO",
                    "QT_VOTOS_NOMINAIS_VALIDOS")
@@ -44,7 +47,8 @@ obter_votos_candidato <- function(ano = ANO) {
 # Acrescenta votos_total, lista, ordem_suplente e redefine `exibir`.
 # lista = federação (se houver) ou partido, por UF e cargo -- é a unidade
 # que disputa as cadeiras e dentro da qual se ordena a suplência.
-definir_exibidos <- function(candidatos, votos, n_suplentes = N_SUPLENTES) {
+definir_exibidos <- function(candidatos, votos, n_suplentes = N_SUPLENTES, n_ranking = N_RANKING,
+                             capitais_tse = NULL) {
   tot <- votos[, .(votos_total = sum(votos)), by = sq_candidato]
   candidatos$votos_total <- tot$votos_total[match(candidatos$sq_candidato, tot$sq_candidato)]
   # Sem linha no munzona = 0 voto; senadores de 2022 não têm votos nesta
@@ -62,6 +66,23 @@ definir_exibidos <- function(candidatos, votos, n_suplentes = N_SUPLENTES) {
 
   candidatos$exibir <- candidatos$cargo == "senador" |
     candidatos$situacao %in% "eleito" |
-    (!is.na(candidatos$ordem_suplente) & candidatos$ordem_suplente <= n_suplentes)
+    (!is.na(candidatos$ordem_suplente) & candidatos$ordem_suplente <= n_suplentes) |
+    candidatos$sq_candidato %in% top_votados(candidatos, votos, n_ranking, capitais_tse)
   candidatos
+}
+
+# Os n mais votados de cada UF x cargo e de cada capital x cargo (o ranking do
+# painel): entram nos exibidos mesmo sem eleição/suplência -- ex. não eleito
+# muito votado de lista que não atingiu o quociente, que não é suplente.
+# capitais_tse: data.frame(uf, cd_municipio_tse) das capitais.
+top_votados <- function(candidatos, votos, n, capitais_tse = NULL) {
+  c26 <- data.table::as.data.table(candidatos)[ano == ANO & votos_total > 0]
+  uf_top <- c26[order(-votos_total), head(sq_candidato, n), by = .(uf, cargo)]$V1
+  cap_top <- character(0)
+  if (!is.null(capitais_tse)) {
+    v <- merge(votos, data.table::as.data.table(capitais_tse), by = c("uf", "cd_municipio_tse"))
+    v <- v[, .(votos = sum(votos)), by = .(uf, cargo = CARGOS$id[match(cd_cargo, CARGOS$cd_cargo)], sq_candidato)]
+    cap_top <- v[votos > 0][order(-votos), head(sq_candidato, n), by = .(uf, cargo)]$V1
+  }
+  union(uf_top, cap_top)
 }

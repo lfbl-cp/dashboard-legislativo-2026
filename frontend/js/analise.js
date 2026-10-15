@@ -166,7 +166,7 @@ const Analise = (() => {
   // [{chave, rotulo, nome, cor, ideologia, total, votos (por município), sigla?}]
   // ordenadas do mais ao menos votado no escopo.
   function entidades(escopo, cargo, agrupar, meta) {
-    const chaveCache = `${escopo.uf}:${cargo}:${agrupar}`;
+    const chaveCache = `${escopo.chave}:${cargo}:${agrupar}`;
     if (cacheEntidades.has(chaveCache)) return cacheEntidades.get(chaveCache);
     const c = escopo.votos.cargos[cargo];
     const n = escopo.n;

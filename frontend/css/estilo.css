@@ -602,3 +602,140 @@ body {
 .popup-alvo td {
   font-weight: 700;
 }
+
+/* --- painel da direita: card do candidato / ranking ------------------------- */
+
+#painel-direito {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  width: 300px;
+  /* deixa livre o canto inferior direito (zoom e atribuição) */
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--painel-fundo);
+  border: 1px solid var(--painel-borda);
+  color: var(--texto);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
+  scrollbar-color: var(--campo-borda) transparent;
+  scrollbar-width: thin;
+}
+
+#painel-direito[hidden],
+body[data-aba="composicao"] #painel-direito {
+  display: none;
+}
+
+#painel-direito .card {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+#direito-titulo {
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+#direito-titulo .sub {
+  display: block;
+  font-weight: 400;
+  color: var(--texto-suave);
+}
+
+.ranking-secao {
+  margin: 10px 0 4px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+}
+
+.ranking {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8rem;
+}
+
+.ranking li {
+  display: grid;
+  grid-template-columns: 18px 32px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ranking li:hover,
+.ranking li:focus-visible {
+  background: var(--campo-fundo);
+  outline: none;
+}
+
+.ranking .rk-pos {
+  color: var(--texto-suave);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranking .foto,
+.ranking .foto-iniciais {
+  width: 32px;
+  height: 45px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.ranking .rk-nome {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.ranking .rk-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--texto-suave);
+  font-size: 0.72rem;
+}
+
+.ranking .rk-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.ranking .rk-num span {
+  display: block;
+  color: var(--texto-suave);
+  font-size: 0.72rem;
+}
+
+.ranking .rk-eleito .rk-nome::after {
+  content: " ✓";
+  color: var(--texto-suave);
+  font-weight: 400;
+}
+
+/* No celular o painel da direita vai para dentro do painel principal. */
+#controles #painel-direito {
+  position: static;
+  width: auto;
+  max-height: none;
+  overflow: visible;
+  margin-top: 14px;
+  padding: 12px 0 0;
+  border: none;
+  border-top: 1px solid var(--painel-borda);
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  backdrop-filter: none;
+}
