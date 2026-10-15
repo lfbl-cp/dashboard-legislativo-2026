@@ -48,7 +48,7 @@ obter_votos_candidato <- function(ano = ANO) {
 # lista = federação (se houver) ou partido, por UF e cargo -- é a unidade
 # que disputa as cadeiras e dentro da qual se ordena a suplência.
 definir_exibidos <- function(candidatos, votos, n_suplentes = N_SUPLENTES, n_ranking = N_RANKING,
-                             capitais_tse = NULL) {
+                             capitais_tse = NULL, lideres = character(0)) {
   tot <- votos[, .(votos_total = sum(votos)), by = sq_candidato]
   candidatos$votos_total <- tot$votos_total[match(candidatos$sq_candidato, tot$sq_candidato)]
   # Sem linha no munzona = 0 voto; senadores de 2022 não têm votos nesta
@@ -67,8 +67,34 @@ definir_exibidos <- function(candidatos, votos, n_suplentes = N_SUPLENTES, n_ran
   candidatos$exibir <- candidatos$cargo == "senador" |
     candidatos$situacao %in% "eleito" |
     (!is.na(candidatos$ordem_suplente) & candidatos$ordem_suplente <= n_suplentes) |
-    candidatos$sq_candidato %in% top_votados(candidatos, votos, n_ranking, capitais_tse)
+    candidatos$sq_candidato %in% top_votados(candidatos, votos, n_ranking, capitais_tse) |
+    candidatos$sq_candidato %in% lideres
+  # Por que cada um é exibido (o 1º motivo que se aplica), para conferência.
+  sq <- candidatos$sq_candidato
+  candidatos$motivo_exibir <- ifelse(!candidatos$exibir, NA_character_,
+    ifelse(candidatos$cargo == "senador", "senador",
+    ifelse(candidatos$situacao %in% "eleito", "eleito",
+    ifelse(!is.na(candidatos$ordem_suplente) & candidatos$ordem_suplente <= n_suplentes, "suplente",
+    ifelse(sq %in% top_votados(candidatos, votos, n_ranking, capitais_tse), "ranking", "lider")))))
   candidatos
+}
+
+# 1º e 2º colocados de cada grupo `by` (x: sq_candidato, cargo, votos).
+top2_por <- function(x, by) {
+  x[, .(votos = sum(votos)), by = c(by, "cargo", "sq_candidato")][votos > 0][
+    order(-votos), utils::head(sq_candidato, 2), by = c(by, "cargo")]$V1
+}
+
+# 1º e 2º colocados (deputados) de cada município, microrregião e
+# mesorregião: entram nos exibidos para o "quem lidera" por candidato ser
+# exato em qualquer unidade (líder e margem sobre o 2º).
+lideres_municipais <- function(votos, municipios, cw) {
+  v <- merge(votos[votos > 0], data.table::as.data.table(cw)[, .(uf, cd_municipio_tse, code_muni)],
+             by = c("uf", "cd_municipio_tse"))
+  v <- merge(v, data.table::as.data.table(municipios)[, .(code_muni, code_micro, code_meso)], by = "code_muni")
+  v[, cargo := CARGOS$id[match(cd_cargo, CARGOS$cd_cargo)]]
+  v <- v[cargo != "senador"]
+  unique(c(top2_por(v, "code_muni"), top2_por(v, "code_micro"), top2_por(v, "code_meso")))
 }
 
 # Os n mais votados de cada UF x cargo e de cada capital x cargo (o ranking do

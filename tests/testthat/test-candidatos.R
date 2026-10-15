@@ -78,14 +78,25 @@ test_that("suplência segue os votos: nenhum suplente supera o eleito menos vota
                as.vector(max_sup[paste(primeiro$uf, primeiro$cargo, primeiro$lista)]))
 
   # exibidos: eleitos + até N_SUPLENTES por lista; suplente além disso só se
-  # estiver entre os mais votados da UF ou da capital (ranking)
-  vm <- readRDS(file.path(DIR_PROCESSED, "votos_candidato_municipio.rds"))
-  cw <- ler_crosswalk_tse_ibge()
-  top <- top_votados(cand, vm, N_RANKING, cw[cw$code_muni %in% CAPITAIS, c("uf", "cd_municipio_tse")])
+  # estiver no ranking (mais votados da UF/capital) ou for 1º/2º de alguma
+  # unidade do mapa
   extra <- sup[sup$exibir & sup$ordem_suplente > N_SUPLENTES, ]
-  expect_true(all(extra$sq_candidato %in% top))
+  expect_true(all(extra$motivo_exibir %in% c("ranking", "lider")))
   expect_true(all(d$exibir[d$situacao %in% "eleito"]))
-  expect_true(all(cand$exibir[cand$sq_candidato %in% top]))
+  c26 <- cand[cand$ano == ANO, ]
+  expect_equal(is.na(c26$motivo_exibir), !c26$exibir)
+})
+
+test_that("1º e 2º colocados de cada município são exibidos (deputados)", {
+  arq <- file.path(DIR_PROCESSED, "candidatos.rds")
+  skip_if_not(file.exists(arq))
+  cand <- readRDS(arq)
+  skip_if(is.null(cand$motivo_exibir), "rode a etapa votos antes")
+  vm <- data.table::as.data.table(readRDS(file.path(DIR_PROCESSED, "votos_candidato_municipio.rds")))
+  vm <- vm[vm$cd_cargo %in% c(6L, 7L, 8L) & vm$votos > 0]
+  vm <- vm[order(-vm$votos)]
+  top <- unique(vm[, utils::head(sq_candidato, 2), by = c("uf", "cd_municipio_tse", "cd_cargo")]$V1)
+  expect_true(all(cand$exibir[match(top, cand$sq_candidato)]))
 })
 
 test_that("os 10 mais votados de cada UF e cargo são exibidos", {

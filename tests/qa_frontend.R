@@ -224,6 +224,12 @@ cenario("rank_clique_abre_candidato", "aba=mapa&cargo=federal&uf=AL",
           js("document.querySelector('#ranking-mapa li').click()")
           Sys.sleep(1.5)
         })
+cenario("lider_cand_recife_bairros", "aba=mapa&cargo=federal&uf=PE&unidade=subdivisao&agrupar=candidato",
+        list(agrupar = "candidato", modo = "lider", unidades = n_sub("PE"), ranking = 10L))
+cenario("lider_cand_pe_municipios", "aba=mapa&cargo=estadual&uf=PE&agrupar=candidato",
+        list(agrupar = "candidato", modo = "lider", unidades = n_mun("PE")))
+cenario("lider_cand_sp_locais", "aba=mapa&cargo=federal&uf=SP&unidade=local&agrupar=candidato",
+        list(agrupar = "candidato", modo = "lider", unidades = n_loc_mapa("SP")))
 cenario("rank_celular", "aba=mapa&cargo=senador&uf=BA", list(eleitos = 2L), w = 390, h = 844, mobile = TRUE)
 
 # --- LISA: navegador x spdep -----------------------------------------------------------
@@ -302,6 +308,41 @@ for (caso in casos_cap) {
     problemas = if (is.na(dif)) sprintf("navegador classificou %d, spdep %d", length(navegador), length(r))
                 else if (dif > 0) sprintf("%d de %d subdivisões divergem do spdep", dif, length(x)) else "",
     ok = isTRUE(dif == 0)
+  )
+}
+
+# "Quem lidera" por candidato (deputados): líder de cada município no
+# navegador (só candidatos exportados) = mais votado entre TODOS os
+# candidatos no munzona.
+vm <- readRDS("data/processed/votos_candidato_municipio.rds")
+cw <- readxl::read_excel("data-raw/ref/linkador_bases.xlsx", sheet = "Sheet1")
+for (caso in list(c("PE", "federal", 6L), c("SP", "estadual", 7L), c("MG", "federal", 6L))) {
+  v <- vm[vm$uf == caso[1] & vm$cd_cargo == as.integer(caso[3]) & vm$votos > 0, ]
+  v <- v[order(-v$votos), ]
+  v <- v[!duplicated(v$cd_municipio_tse), ]
+  v$code_muni <- as.integer(cw$id_munic_7[match(paste(caso[1], v$cd_municipio_tse), paste(cw$estado_abrev, cw$id_TSE))])
+  navegador <- js(sprintf(
+    "(async () => {
+      const meta = await Dados.carregarJson('output/meta.json');
+      const e = await Analise.carregarEscopo('%s');
+      const uns = Analise.unidades(e, 'municipio', meta);
+      const ents = Analise.entidades(e, '%s', 'candidato', meta);
+      const { lideres } = Analise.lideres(ents, uns, Analise.totais(e, '%s', uns).validos);
+      return uns.features.map((f, u) => [f.properties.code_muni, lideres[u] ? ents[lideres[u].k].chave : null]);
+    })()", caso[1], caso[2], caso[2]))
+  nav <- stats::setNames(vapply(navegador, function(x) x[[2]] %||% NA_character_, ""),
+                         vapply(navegador, function(x) as.character(x[[1]]), ""))
+  # empate no 1º lugar: qualquer um dos empatados vale
+  dif <- sum(nav[as.character(v$code_muni)] != v$sq_candidato &
+               !mapply(function(m, sq) {
+                 x <- vm[vm$uf == caso[1] & vm$cd_cargo == as.integer(caso[3]) & vm$cd_municipio_tse == m, ]
+                 sq %in% x$sq_candidato[x$votos == max(x$votos)]
+               }, v$cd_municipio_tse, nav[as.character(v$code_muni)]), na.rm = TRUE)
+  resultados[[paste("lider_cand", caso[1])]] <- data.frame(
+    cenario = sprintf("lider_candidato_%s_%s", caso[1], caso[2]), aba = "-", cadeiras = NA,
+    unidades = nrow(v), card = NA, popup = NA,
+    problemas = if (dif > 0) sprintf("%d municípios com líder diferente do munzona", dif) else "",
+    ok = dif == 0
   )
 }
 

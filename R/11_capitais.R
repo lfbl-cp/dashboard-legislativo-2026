@@ -274,6 +274,31 @@ exportar_topojson_subdivisoes <- function(subdiv, caminho) {
   invisible(caminho)
 }
 
+# --- preparo (usado nas etapas votos e capitais) ------------------------------------
+
+# Votos classificados, locais (com coordenada conferida e subdivisão) e
+# subdivisões de uma capital. `malha` = malha municipal completa do IBGE.
+preparar_capital <- function(uf, candidatos, partidos, votos_municipio, cw, malha) {
+  code <- CAPITAIS[[uf]]
+  cd <- cw$cd_municipio_tse[cw$code_muni == code]
+  s <- obter_secao_capital(uf, cd)
+  v <- classificar_votos_secao(s$votos, candidatos, partidos, validos_munzona_capital(uf, cd, votos_municipio))
+  locais <- montar_locais(s$secoes, ler_locais_capital(uf, cd))
+  locais <- conferir_coordenadas(locais, malha[as.integer(malha$code_muni) == code, ])
+  subdiv <- montar_subdivisoes(uf)
+  locais$subdiv <- atribuir_subdivisao(locais, subdiv)
+  list(uf = uf, code = code, cd = cd, v = v, locais = locais, subdiv = subdiv)
+}
+
+# 1º e 2º colocados (deputados) de cada local e de cada subdivisão da
+# capital: entram nos exibidos para o "quem lidera" por candidato ser exato
+# (líder e margem sobre o 2º).
+lideres_capital <- function(prep) {
+  n <- prep$v[tipo == "nominal" & cargo != "senador"]
+  n[, sub := prep$locais$subdiv[match(paste(nr_zona, nr_local), paste(prep$locais$nr_zona, prep$locais$nr_local))]]
+  unique(c(top2_por(n, c("nr_zona", "nr_local")), top2_por(n[sub >= 0], "sub")))
+}
+
 # --- montagem do arquivo da capital -------------------------------------------------
 
 # v: votos classificados (classificar_votos_secao); locais: montar_locais na

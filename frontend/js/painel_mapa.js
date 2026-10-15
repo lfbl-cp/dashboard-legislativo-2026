@@ -3,10 +3,9 @@
 //
 // Combinações válidas (normalizar()):
 //   - Unidade "uf" só na visão Brasil.
-//   - Agrupar por candidato só numa UF (candidatos são de cada UF) e, para
-//     deputados, não no modo "quem lidera": só eleitos + 3 suplentes por
-//     lista são exportados, então o mais votado de um município poderia não
-//     estar entre eles.
+//   - Agrupar por candidato só numa UF (candidatos são de cada UF). No
+//     "quem lidera" de deputados o líder é exato: o pipeline exporta o 1º e
+//     o 2º de toda unidade do mapa (ver exibidos em CLAUDE.md).
 //   - LISA por município numa UF (vizinhança da própria UF -- misturar 27
 //     eleições não tem sentido, ver clone; fora o DF, 1 município) ou pelas
 //     subdivisões da capital; nunca por local de votação (pontos).
@@ -49,7 +48,7 @@ const PainelMapa = (() => {
 
   // --- regras de combinação ---------------------------------------------------
   function candidatoPermitido(e) {
-    return e.uf !== "BR" && !(e.modo === "lider" && e.cargo !== "senador");
+    return e.uf !== "BR";
   }
 
   function lisaPermitida(e) {
@@ -103,11 +102,7 @@ const PainelMapa = (() => {
     el("seg-agrupar-mapa").querySelectorAll("button").forEach((b) => {
       const v = b.dataset.valor;
       b.disabled = v === "candidato" && !candidatoPermitido(estado);
-      b.title = b.disabled
-        ? estado.uf === "BR"
-          ? "Escolha uma UF para ver candidatos"
-          : "Para deputados, só há dados de eleitos e dos 3 primeiros suplentes de cada lista"
-        : "";
+      b.title = b.disabled ? "Escolha uma UF para ver candidatos" : "";
       b.setAttribute("aria-pressed", String(v === estado.agrupar));
     });
     el("label-alvo").hidden = estado.modo === "lider";
@@ -193,20 +188,19 @@ const PainelMapa = (() => {
 
     if (estado.modo === "lider") {
       const { lideres } = Analise.lideres(ents, uns, tot.validos);
-      estiloUnidade = (u) => {
-        const l = lideres[u];
-        if (!l) return SEM_DADO;
-        const cor = ents[l.k].cor;
-        return {
-          fillColor: l.intensidade === "alta" ? Cores.escurecer(cor, 0.25) : Cores.interpolarComBranco(cor, 0.55),
-          fillOpacity: 0.9,
-        };
-      };
+      // Partido: cor do líder, escura/clara pela folga (como no clone).
+      // Candidato: cada líder com um tom próprio da cor do partido (vários
+      // candidatos do mesmo partido lideram em lugares diferentes); a folga
+      // fica no popup.
+      const tons = estado.agrupar === "candidato" ? tonsCandidatos(ents, lideres) : null;
+      const corLider = (l) =>
+        tons ? tons.get(l.k) : l.intensidade === "alta" ? Cores.escurecer(ents[l.k].cor, 0.25) : Cores.interpolarComBranco(ents[l.k].cor, 0.55);
+      estiloUnidade = (u) => (lideres[u] ? { fillColor: corLider(lideres[u]), fillOpacity: 0.9 } : SEM_DADO);
       infoUnidade = (u) => {
         const l = lideres[u];
         return l ? `<div class="popup-nota">Lidera ${Util.esc(ents[l.k].rotulo)} com folga de ${Util.pp(l.margem)}</div>` : "";
       };
-      legenda = legendaLider(ents, lideres, uns);
+      legenda = legendaLider(ents, lideres, tons);
     } else if (estado.modo === "continuo") {
       const fr = alvo ? Analise.fracoes(alvo, uns, tot.validos) : new Float64Array(uns.n);
       const max = Analise.teto(fr);
@@ -294,21 +288,46 @@ const PainelMapa = (() => {
   }
 
   // --- legendas -------------------------------------------------------------------
-  function legendaLider(ents, lideres, uns) {
+  // Tom de cada candidato líder: dentro de cada partido, o que lidera em mais
+  // unidades fica com a cor cheia e os seguintes alternam clareado/escurecido.
+  function tonsCandidatos(ents, lideres) {
+    const cont = contarLideres(lideres);
+    const porPartido = new Map();
+    [...cont.entries()].sort((a, b) => b[1] - a[1]).forEach(([k]) => {
+      const s = ents[k].sigla;
+      if (!porPartido.has(s)) porPartido.set(s, []);
+      porPartido.get(s).push(k);
+    });
+    const VARIACOES = [
+      (c) => c, (c) => Cores.interpolarComBranco(c, 0.45), (c) => Cores.escurecer(c, 0.4),
+      (c) => Cores.interpolarComBranco(c, 0.7), (c) => Cores.escurecer(c, 0.6), (c) => Cores.interpolarComBranco(c, 0.25),
+    ];
+    const tons = new Map();
+    porPartido.forEach((ks) => ks.forEach((k, i) => tons.set(k, VARIACOES[i % VARIACOES.length](ents[k].cor))));
+    return tons;
+  }
+
+  function contarLideres(lideres) {
     const cont = new Map();
     lideres.forEach((l) => {
       if (l) cont.set(l.k, (cont.get(l.k) || 0) + 1);
     });
+    return cont;
+  }
+
+  function legendaLider(ents, lideres, tons) {
+    const cont = contarLideres(lideres);
     const nome = rotuloUnidade(estado.unidade, true);
     const itens = [...cont.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([k, n]) => `<div class="item"><span class="swatch" style="background:${Cores.escurecer(ents[k].cor, 0.25)}"></span>
+      .map(([k, n]) => `<div class="item"><span class="swatch" style="background:${tons ? tons.get(k) : Cores.escurecer(ents[k].cor, 0.25)}"></span>
         <span>${Util.esc(ents[k].rotulo)}</span><span class="n">${n}</span></div>`)
       .join("");
+    const nota = tons
+      ? "Cada candidato com um tom da cor do partido. A folga sobre o 2º colocado aparece ao clicar na unidade."
+      : "Tom mais escuro = folga maior sobre o 2º colocado (acima da mediana das vitórias daquele partido); mais claro = folga menor.";
     return `<div class="legenda-cabecalho"><span>Lidera em</span><span>${Util.esc(nome)}</span></div>${itens}
-      <div class="legenda-nota">Tom mais escuro = folga maior sobre o 2º colocado (acima da mediana das vitórias daquele ${
-        estado.agrupar === "candidato" ? "candidato" : "partido"
-      }); mais claro = folga menor.</div>`;
+      <div class="legenda-nota">${nota}</div>`;
   }
 
   function legendaContinuo(alvo, max) {

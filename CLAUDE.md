@@ -289,5 +289,18 @@ documenta várias dores de binário Windows com renv; evitar até precisar.
     a UF e a capital dela).
   - QA: 46 verificações, incluindo ranking ordenado e seletor ordenado em
     todos os cenários do mapa.
+- **"Quem lidera" por candidato também para deputados** (pedido do
+  usuário; ele escolheu cobertura capitais + municípios): `exibir` inclui
+  o 1º e o 2º colocado de cada município, micro e meso
+  (`lideres_municipais()`) e de cada local e subdivisão das capitais
+  (`lideres_capital()`), para o líder e a margem serem exatos com só os
+  exibidos. `motivo_exibir` registra o motivo (senador, eleito, suplente,
+  ranking, lider). Exibidos 3.243 -> 4.828; fotos 26 MB; votos 8,7 MB;
+  capitais 15,4 MB. A etapa `votos` agora roda depois de `geografia` e
+  prepara as capitais (`preparar_capital()`, também usada em `capitais`).
+  No mapa, cada candidato líder tem um tom da cor do partido
+  (`tonsCandidatos()`); a folga fica no popup. QA: líder por candidato no
+  navegador = mais votado entre todos os candidatos do munzona em todos os
+  municípios (PE, SP, MG).
 - Próximo: Fase 6 (publicação: GitHub Pages em
   `lfbl-cp/dashboard-legislativo-2026`, ativar em Settings -> Pages).

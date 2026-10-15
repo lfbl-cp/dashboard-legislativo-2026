@@ -8,13 +8,15 @@
 # Etapas (em ordem):
 #   candidatos  consulta_cand 2026 (27 UFs) + senadores 2022 -> candidatos,
 #               partidos, federações e cadeiras de cada Casa, validados
+#   geografia   malha municipal (IBGE/geobr) + micro/meso -> output/geo/
 #   votos       votos por candidato x município (munzona, UF a UF); define
 #               os exibidos (eleitos + 3 primeiros suplentes por lista;
-#               senadores todos) e busca as redes sociais deles
+#               senadores todos; 10 mais votados de cada UF e capital; 1º e
+#               2º de cada município, micro, meso, local e subdivisão das
+#               capitais) e busca as redes sociais deles; precisa de geografia
 #   fotos       fotos oficiais dos exibidos -> output/fotos/ (apaga as de
 #               quem deixou de ser exibido)
 #   composicao  cadeiras de todas as Casas -> output/composicao.json
-#   geografia   malha municipal (IBGE/geobr) + micro/meso -> output/geo/
 #   exportar    meta.json, votos/{UF}.json, votos/BR.json, candidatos/{UF}.json
 #               (somas validadas contra o detalhe oficial do TSE)
 #   capitais    piloto de bairros e locais de votação nas 27 capitais
@@ -35,7 +37,7 @@ local({
 })
 for (f in sort(list.files("R", pattern = "\\.R$", full.names = TRUE))) source(f, encoding = "UTF-8")
 
-ETAPAS <- c("candidatos", "votos", "fotos", "composicao", "geografia", "exportar", "capitais")
+ETAPAS <- c("candidatos", "geografia", "votos", "fotos", "composicao", "exportar", "capitais")
 
 args <- commandArgs(trailingOnly = TRUE)
 etapas <- ETAPAS
@@ -100,7 +102,17 @@ etapa_votos <- function() {
 
   cw <- ler_crosswalk_tse_ibge()
   capitais_tse <- cw[cw$code_muni %in% CAPITAIS, c("uf", "cd_municipio_tse")]
-  candidatos <- definir_exibidos(candidatos, votos, capitais_tse = capitais_tse)
+  # Líderes e 2ºs colocados de cada unidade do mapa (município, micro, meso;
+  # locais e subdivisões das capitais) também são exibidos.
+  arq_mun <- file.path(DIR_PROCESSED, "municipios.rds")
+  if (!file.exists(arq_mun)) stop("Rode a etapa geografia antes dos votos.")
+  lideres <- lideres_municipais(votos, readRDS(arq_mun), cw)
+  malha <- ler_geobr_cache(sprintf("municipios_%d", ANO_MALHA), function() stop("Rode a etapa geografia antes."))
+  partidos <- readRDS(file.path(DIR_PROCESSED, "partidos.rds"))
+  for (uf in UFS_BRASIL) {
+    lideres <- c(lideres, lideres_capital(preparar_capital(uf, candidatos, partidos, votos, cw, malha)))
+  }
+  candidatos <- definir_exibidos(candidatos, votos, capitais_tse = capitais_tse, lideres = unique(lideres))
   redes <- montar_redes(ANO, candidatos$sq_candidato[candidatos$exibir])
   candidatos$redes <- unname(redes[candidatos$sq_candidato])
   saveRDS(candidatos, file.path(DIR_PROCESSED, "candidatos.rds"))
@@ -221,14 +233,11 @@ etapa_capitais <- function() {
   indice <- list()
   resumo <- list()
   for (uf in UFS_BRASIL) {
-    code <- CAPITAIS[[uf]]
-    cd <- cw$cd_municipio_tse[cw$code_muni == code]
-    s <- obter_secao_capital(uf, cd)
-    v <- classificar_votos_secao(s$votos, candidatos, partidos, validos_munzona_capital(uf, cd, votos_mun))
-    locais <- montar_locais(s$secoes, ler_locais_capital(uf, cd))
-    locais <- conferir_coordenadas(locais, malha[as.integer(malha$code_muni) == code, ])
-    subdiv <- montar_subdivisoes(uf)
-    locais$subdiv <- atribuir_subdivisao(locais, subdiv)
+    prep <- preparar_capital(uf, candidatos, partidos, votos_mun, cw, malha)
+    code <- prep$code
+    v <- prep$v
+    locais <- prep$locais
+    subdiv <- prep$subdiv
 
     exib <- candidatos$sq_candidato[candidatos$exibir & candidatos$ano == ANO & candidatos$uf == uf]
     cap <- montar_votos_capital(v, locais, exib)
